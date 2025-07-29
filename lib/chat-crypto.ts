@@ -1,4 +1,5 @@
 // lib/chat-crypto.ts
+"use client";
 
 /**
  * 将 CryptoKey 导出为可在 URL hash 中使用的 Base64 字符串。
@@ -81,4 +82,52 @@ export async function decryptMessage(keyStr: string, encryptedData: string): Pro
   );
 
   return new TextDecoder().decode(decrypted);
+}
+
+/**
+ * 使用给定的 Base64 密钥加密一个 File 对象。
+ * @param keyStr Base64 编码的密钥
+ * @param file 要加密的文件
+ * @returns 加密后的 Blob 对象
+ */
+export async function encryptFile(keyStr: string, file: File): Promise<Blob> {
+  const key = await importKey(keyStr);
+  const iv = window.crypto.getRandomValues(new Uint8Array(12));
+  const fileBuffer = await file.arrayBuffer();
+
+  const ciphertext = await window.crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    fileBuffer
+  );
+
+  // 将 iv 和 ciphertext 合并成一个 Blob
+  return new Blob([iv, ciphertext]);
+}
+
+/**
+ * 使用给定的 Base64 密钥解密一个 Blob 对象。
+ * @param keyStr Base64 编码的密钥
+ * @param encryptedBlob 加密的 Blob (iv + ciphertext)
+ * @returns 解密后的 ArrayBuffer
+ */
+export async function decryptFile(keyStr: string, encryptedBlob: Blob): Promise<ArrayBuffer> {
+  const key = await importKey(keyStr);
+  const encryptedBuffer = await encryptedBlob.arrayBuffer();
+
+  // 从 Blob 中分离 iv 和 ciphertext
+  const iv = encryptedBuffer.slice(0, 12);
+  const ciphertext = encryptedBuffer.slice(12);
+
+  if (iv.byteLength !== 12) {
+    throw new Error('Invalid encrypted data: IV is missing or has incorrect length.');
+  }
+
+  const decrypted = await window.crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    ciphertext
+  );
+
+  return decrypted;
 }

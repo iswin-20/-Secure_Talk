@@ -2,6 +2,7 @@
 'use server';
 
 import { redis } from '@/lib/redis';
+import { destroyLink } from '@/lib/destroy-logic';
 import { revalidatePath } from 'next/cache';
 import { Resend } from 'resend';
 import { nanoid } from 'nanoid';
@@ -9,17 +10,11 @@ import type { StoredData } from '@/lib/types';
 
 // --- Destroy Action ---
 export async function destroyLinkAction(id: string): Promise<{ success: boolean; message: string }> {
-  if (!id) {
-    return { success: false, message: 'ID is required' };
+  const result = await destroyLink(id);
+  if (result.success) {
+    revalidatePath('/');
   }
-  try {
-    await redis.del(id);
-    revalidatePath('/'); // 清除相关页面的缓存
-    return { success: true, message: '链接已销毁！' };
-  } catch (error) {
-    console.error(error);
-    return { success: false, message: '销毁失败，请重试。' };
-  }
+  return result;
 }
 
 

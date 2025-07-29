@@ -4,9 +4,9 @@
 import { useState, useEffect } from 'react';
 import Script from 'next/script';
 
-// 图标组件 (保持不变)
+// 图标组件 (深色模式自适应)
 const LanguageIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 text-gray-700 group-hover:text-blue-600 transition-colors">
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 text-gray-700 dark:text-gray-300 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
         <path d="m5 8 6 6" /><path d="m4 14 6-6 2-3" /><path d="M2 5h12" /><path d="M7 2h1" /><path d="m22 22-5-10-5 10" /><path d="M14 18h6" />
     </svg>
 );
@@ -63,7 +63,7 @@ export default function TranslateButton() {
             <div className="group fixed bottom-5 right-5 z-50 flex items-center">
                 {/* 条件渲染的提示框 */}
                 {showPrompt && (
-                    <div className="bg-blue-600 text-white text-sm font-semibold py-2 px-4 rounded-lg shadow-lg mr-3 transition-opacity duration-300 ease-in-out">
+                    <div className="bg-blue-600 dark:bg-blue-700 text-white text-sm font-semibold py-2 px-4 rounded-lg shadow-lg mr-3 transition-opacity duration-300 ease-in-out">
                         Need translation?
                     </div>
                 )}
@@ -71,7 +71,7 @@ export default function TranslateButton() {
                 {/* 浮动按钮 */}
                 <button
                     onClick={handleTranslateToggle}
-                    className="flex items-center justify-center bg-white p-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:bg-gray-50"
+                    className="flex items-center justify-center bg-white dark:bg-gray-800 border dark:border-gray-700 p-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
                     aria-label={isTranslated ? "Show original language" : "Translate to English"}
                 >
                     <LanguageIcon />

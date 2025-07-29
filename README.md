@@ -385,6 +385,73 @@ if __name__ == "__main__":
         destroy_secure_link(link_id)
 ```
 
+### 3. 清理数据（Cleanup API）
+
+该端点用于批量清理平台遗留数据，包括 Redis 中的 IP 记录、日志、以及 Vercel Blob 孤儿文件。**仅限管理员使用，需提供 `adminPassword`。**
+
+- **端点地址**: `/api/cleanup`
+- **请求方法**: `POST`
+- **内容类型**: `application/json`
+
+#### 请求体参数
+
+| 参数           | 类型      | 是否必需 | 描述                                                                 |
+| :------------- | :-------- | :------ | :------------------------------------------------------------------- |
+| `adminPassword`| string    | **是**  | 管理员密码，用于接口鉴权。                                           |
+| `tasks`        | string[]  | **是**  | 需要执行的清理任务数组，可选值：`"ips"`、`"logs"`、`"files"`。        |
+| `dryRun`       | boolean   | 否      | 是否仅预览将要删除的数据，不实际执行删除。默认为 `false`。           |
+
+#### 任务说明
+
+- `"ips"`：清理 Redis 中无效的 IP 访问记录（如对应 chat 已被删除的 IP 记录）。
+- `"logs"`：清理所有 Redis 日志记录（如访问审计、速率限制日志等）。
+- `"files"`：清理 Vercel Blob 孤儿文件（即数据库中已无引用的文件）。
+
+#### 示例请求
+
+```bash
+curl --location --request POST 'https://your-app-domain.com/api/cleanup' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+    "adminPassword": "您的管理员密码",
+    "tasks": ["ips", "logs", "files"],
+    "dryRun": true
+}'
+```
+
+#### 响应示例
+
+```json
+{
+  "success": true,
+  "message": "Cleanup process finished.",
+  "report": {
+    "dryRun": true,
+    "tasksRequested": ["ips", "logs", "files"],
+    "results": {
+      "ips": { "scanned": 10, "to_delete": 2, "deleted": 0 },
+      "logs": { "scanned": 5, "deleted": 0 },
+      "files": {
+        "blobs_scanned": 8,
+        "redis_keys_scanned": 12,
+        "redis_values_checked": 12,
+        "to_delete": 1,
+        "deleted": 0,
+        "errors": 0
+      }
+    }
+  }
+}
+```
+
+- 若 `dryRun: true`，不会实际删除，仅返回将要删除的数量。
+- 若 `dryRun: false`，会实际执行删除操作，并返回删除数量。
+
+#### 权限与安全
+
+- 仅管理员可用，需正确的 `adminPassword`。
+- 建议先用 `dryRun: true` 预览清理结果，确认无误后再执行实际清理。
+
 ## 技术栈
 
 *   **框架**: Next.js 14+ (App Router/Server Action)

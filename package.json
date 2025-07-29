@@ -12,6 +12,7 @@
     "@types/crypto-js": "^4.2.2",
     "@upstash/ratelimit": "^2.0.5",
     "@upstash/redis": "^1.35.1",
+    "@vercel/blob": "^1.1.1",
     "crypto-js": "^4.2.0",
     "nanoid": "^5.1.5",
     "next": "14.2.30",

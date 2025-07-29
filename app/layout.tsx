@@ -4,6 +4,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import Footer from "./Footer";
 import TranslateButton from "./TranslateButton";
+import DarkModeToggle from "./DarkModeToggle";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -25,14 +26,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col bg-gray-100 dark:bg-gray-900 transition-colors duration-300`}
       >
         {/* 在这里添加居中和背景色 */}
-        <main className="flex-1 flex justify-center items-center bg-gray-100">
+        <main className="flex-1 flex justify-center items-center">
           {children}
         </main>
         <Footer />
         <TranslateButton />
+        <DarkModeToggle />
       </body>
     </html>
   );

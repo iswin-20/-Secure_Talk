@@ -6,6 +6,7 @@ import { nanoid } from 'nanoid';
 import { encrypt } from '@/lib/crypto'; // 复用服务端的加密库来加密访问密码
 import { writeLog } from '@/lib/rateLimit';
 import type { ChatData, EncryptedMessage } from '@/lib/types';
+import { destroyChatRoom } from '@/lib/destroy-logic';
 import { revalidatePath } from 'next/cache';
 //【新增】导入共享的链接生成逻辑和 headers
 import { generateLinkLogic } from '@/lib/generate-logic';
@@ -17,7 +18,8 @@ const CHAT_EXPIRY = 3 * 24 * 3600; // 聊天记录默认保留3天
 export async function createChat(
     adminPassword: string, 
     accessPassword?: string,
-    inactiveHours: number = 72 // 默认不设置非活跃时间
+    inactiveHours: number = 72, // 默认不设置非活跃时间
+    ipLockingEnabled: boolean = false // 是否启用 IP 锁定
 ): Promise<{ success: boolean; links?: { a: string; b: string }; error?: string }> {
   try {
     if (adminPassword !== process.env.ADMIN_PASSWORD) {
@@ -31,6 +33,7 @@ export async function createChat(
         messages: [],
         inactiveHours: inactiveHours, // 设置非活跃时间
         accessPasswordCipher: accessPassword ? encrypt(accessPassword) : undefined,
+        ipLockingEnabled: ipLockingEnabled,
     };
 
     // 如果提供了访问密码，用服务端密钥加密它
@@ -118,15 +121,11 @@ export async function postMessage(chatId: string, message: EncryptedMessage): Pr
 
 // 5. 销毁聊天
 export async function destroyChat(chatId: string): Promise<{ success: boolean; error?: string }> {
-    try {
-        await redis.del(`chat:${chatId}`);
-        await writeLog(`chat:destroy`, chatId, { action: 'CHAT_DESTROYED' });
-        revalidatePath(`/chat/${chatId}`);
-        return { success: true };
-    } catch (e) {
-        console.error('Destroy chat error:', e);
-        return { success: false, error: 'Failed to destroy chat.' };
-    }
+  const result = await destroyChatRoom(chatId);
+  if (result.success) {
+    revalidatePath(`/chat/${chatId}`);
+  }
+  return result;
 }
 
 // 【新增的 Server Action】
@@ -154,6 +153,9 @@ export async function generateBurnLinkForChat(
             email: null,
             expiry: null, // 使用默认过期时间
             ip: ip,
+            // 【关键修正】明确告知这是非 E2EE 链接
+            useE2EE: false, 
+            encryptionKey: null,
         });
 
         if (result.error) {
