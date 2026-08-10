@@ -299,6 +299,7 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
       if (result.success) {
         setNewMessage("");
         setReplyTo(null);
+        setShowEmojiPicker(false);
         setMessages(prev => [...prev, message]);
       } else setError(result.error || "消息发送失败");
     } catch { setError("加密失败"); }
@@ -530,7 +531,6 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
             )}
           </button>
           <DarkModeToggle />
-          <button onClick={fetchHistory} className="px-3 py-1.5 text-xs font-medium text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] hover:bg-[rgb(var(--surface-tertiary))] rounded-lg transition-colors">刷新</button>
           {/* Language selector */}
           <select
             value={targetLang}
@@ -785,7 +785,7 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
 
         {showEmojiPicker && (
           <div className="absolute bottom-full left-4 right-4 mb-3 z-50 animate-slide-up">
-            <EmojiPicker spriteUrl="/sprite.png" onSelectEmoji={(emoji) => { setNewMessage(prev => prev + emoji.code); setShowEmojiPicker(false); }} />
+            <EmojiPicker spriteUrl="/sprite.png" onSelectEmoji={(emoji) => { setNewMessage(prev => prev + emoji.code); }} />
           </div>
         )}
         <div className="flex items-center gap-2">
