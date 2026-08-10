@@ -7,6 +7,7 @@ import { encryptMessage, decryptMessage } from "@/lib/chat-crypto";
 import type { EncryptedMessage, Participant } from "@/lib/types";
 import FileMessage from "./FileMessage";
 import DarkModeToggle from "@/app/DarkModeToggle";
+import { searchGifs } from "../gif-action";
 import { WechatEmojiRenderer, EmojiPicker } from "wechat-emoji-renderer/react";
 
 const maxUploadSizeMB = 25;
@@ -55,6 +56,13 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
   const [targetLang, setTargetLang] = useState(() => {
     if (typeof window !== "undefined") return localStorage.getItem("chat-translate-lang") || "zh-CN";
     return "zh-CN";
+  });
+  const [showGifPicker, setShowGifPicker] = useState(false);
+  const [gifSearch, setGifSearch] = useState("");
+  const [gifResults, setGifResults] = useState<{ id: string; url: string; preview: string; description: string }[]>([]);
+  const [stolenStickers, setStolenStickers] = useState<{ id: string; url: string; preview: string; description: string }[]>(() => {
+    if (typeof window !== "undefined") try { return JSON.parse(localStorage.getItem("stolen-stickers") || "[]"); } catch { return []; }
+    return [];
   });
   const dragCounterRef = useRef(0);
 
@@ -304,6 +312,40 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
       } else setError(result.error || "消息发送失败");
     } catch { setError("加密失败"); }
     finally { setIsSending(false); messageInputRef.current?.focus(); }
+  };
+
+  const handleSendGif = async (gifUrl: string, previewUrl: string) => {
+    if (!accessKey || isSending) return;
+    setIsSending(true);
+    try {
+      const message: EncryptedMessage = {
+        sender: myIdentity,
+        timestamp: Date.now(),
+        gifUrl,
+        content: previewUrl, // store preview URL as content for thumbnail
+      };
+      const result = await postMessage(chatId, message);
+      if (result.success) {
+        setMessages(prev => [...prev, message]);
+        setShowGifPicker(false);
+      }
+    } catch {}
+    finally { setIsSending(false); }
+  };
+
+  const handleGifSearch = async (q: string) => {
+    const results = await searchGifs(q);
+    setGifResults(results);
+  };
+
+  const stealSticker = (gifResult: { id: string, url: string, preview: string, description: string }) => {
+    const sticker = { id: gifResult.id, url: gifResult.url, preview: gifResult.preview, description: gifResult.description };
+    setStolenStickers(prev => {
+      if (prev.find(s => s.id === sticker.id)) return prev; // already stolen
+      const next = [sticker, ...prev].slice(0, 100); // max 100
+      localStorage.setItem("stolen-stickers", JSON.stringify(next));
+      return next;
+    });
   };
 
   const handleTranslate = async (msgTimestamp: number) => {
@@ -667,6 +709,9 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
                         <img src={decryptedImages[msg.timestamp]} alt="图片" className="max-w-[300px] rounded-lg" />
                       )}
                       {msg.imageData && !decryptedImages[msg.timestamp] && <span className="text-[rgb(var(--text-muted))]">解密图片中...</span>}
+                      {msg.gifUrl && (
+                        <img src={msg.gifUrl} alt="GIF" className="max-w-[300px] rounded-lg" loading="lazy" />
+                      )}
                       {msg.file && accessKey && <FileMessage fileMeta={msg.file} accessKey={accessKey} />}
                     </div>
                   </div>
@@ -680,6 +725,18 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" />
                     </svg>
                   </button>
+                  {/* Steal sticker button — only for GIF messages */}
+                  {msg.gifUrl && (
+                    <button
+                      onClick={() => stealSticker({ id: String(msg.timestamp), url: msg.gifUrl!, preview: msg.content || msg.gifUrl!, description: "GIF" })}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full hover:bg-[rgb(var(--accent))]/10 shrink-0 mb-1"
+                      title="偷表情"
+                    >
+                      <svg className="w-4 h-4 text-[rgb(var(--text-muted))] hover:text-[rgb(var(--accent))]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
+                      </svg>
+                    </button>
+                  )}
                   {/* Translate button — beside bubble, visible on hover */}
                   {msg.content && decryptedContent[msg.timestamp] && (
                     <button
@@ -788,11 +845,62 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
             <EmojiPicker spriteUrl="/sprite.png" onSelectEmoji={(emoji) => { setNewMessage(prev => prev + emoji.code); }} />
           </div>
         )}
+
+        {showGifPicker && (
+          <div className="absolute bottom-full left-4 right-4 mb-3 z-50 animate-slide-up">
+            <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl shadow-xl overflow-hidden" style={{ maxHeight: "420px" }}>
+              {/* Search bar */}
+              <div className="p-3 border-b border-[rgb(var(--border))]">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={gifSearch}
+                    onChange={e => setGifSearch(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") handleGifSearch(gifSearch); }}
+                    placeholder="搜索 GIF..."
+                    className="flex-1 px-3 py-1.5 text-sm bg-[rgb(var(--surface-secondary))] rounded-lg outline-none focus:ring-2 focus:ring-[rgb(var(--accent))]"
+                    autoFocus
+                  />
+                  <button onClick={() => handleGifSearch(gifSearch)} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[rgb(var(--accent))] text-white hover:bg-[rgb(var(--accent-hover))] transition-colors">搜索</button>
+                </div>
+                {/* Tabs: search results / my stickers */}
+                {stolenStickers.length > 0 && (
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={() => { setGifResults([]); handleGifSearch("trending"); }} className="text-xs px-2 py-0.5 rounded-lg bg-[rgb(var(--surface-secondary))] text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))]">🔥 热门</button>
+                    <span className="text-xs px-2 py-0.5 rounded-lg bg-[rgb(var(--accent-light))] text-[rgb(var(--accent))] font-medium cursor-pointer" onClick={() => setGifResults(stolenStickers)}>我的 ({stolenStickers.length})</span>
+                  </div>
+                )}
+              </div>
+              {/* Results grid */}
+              <div className="overflow-y-auto p-2" style={{ maxHeight: "320px" }}>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {gifResults.map((gif, i) => (
+                    <button
+                      key={gif.id || i}
+                      onClick={() => handleSendGif(gif.url, gif.preview || gif.url)}
+                      className="relative w-full aspect-square rounded-lg overflow-hidden bg-[rgb(var(--surface-secondary))] hover:ring-2 hover:ring-[rgb(var(--accent))] transition-all"
+                    >
+                      <img src={gif.preview || gif.url} alt={gif.description || "GIF"} className="w-full h-full object-cover" loading="lazy" />
+                    </button>
+                  ))}
+                  {gifResults.length === 0 && (
+                    <div className="col-span-3 py-8 text-center text-sm text-[rgb(var(--text-muted))]">
+                      {stolenStickers.length > 0 ? "点击「热门」加载 GIF，或查看「我的」表情包" : "输入关键词搜索 GIF"}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="flex items-center gap-2">
           <div className="flex-1 rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] focus-within:border-[rgb(var(--accent))] focus-within:ring-2 focus-within:ring-[rgb(var(--accent))]/10 transition-all">
             <textarea ref={messageInputRef} value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !isSending) { e.preventDefault(); handleSendMessage(); } }} placeholder={replyTo ? "输入回复..." : "输入消息... 或拖拽图片到聊天区"} className="w-full px-4 py-2.5 text-sm bg-transparent text-[rgb(var(--text-primary))] placeholder:text-[rgb(var(--text-muted))] outline-none resize-y min-h-[42px]" disabled={isSending} autoFocus rows={1} />
           </div>
-          <button onClick={() => setShowEmojiPicker(!showEmojiPicker)} className={`p-2.5 rounded-xl transition-all shrink-0 ${showEmojiPicker ? "bg-[rgb(var(--accent))] text-white" : "text-[rgb(var(--text-muted))] hover:text-[rgb(var(--text-primary))] hover:bg-[rgb(var(--surface-tertiary))]"}`} title="表情">
+          <button onClick={() => { setShowGifPicker(!showGifPicker); setShowEmojiPicker(false); if (!showGifPicker) handleGifSearch("trending"); }} className={`p-2.5 rounded-xl transition-all shrink-0 ${showGifPicker ? "bg-[rgb(var(--accent))] text-white" : "text-[rgb(var(--text-muted))] hover:text-[rgb(var(--text-primary))] hover:bg-[rgb(var(--surface-tertiary))]"}`} title="GIF">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          </button>
+          <button onClick={() => { setShowEmojiPicker(!showEmojiPicker); setShowGifPicker(false); }} className={`p-2.5 rounded-xl transition-all shrink-0 ${showEmojiPicker ? "bg-[rgb(var(--accent))] text-white" : "text-[rgb(var(--text-muted))] hover:text-[rgb(var(--text-primary))] hover:bg-[rgb(var(--surface-tertiary))]"}`} title="表情">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" /></svg>
           </button>
           <button onClick={handleSendMessage} disabled={isSending || !newMessage.trim()} className="p-2.5 rounded-xl bg-[rgb(var(--accent))] text-white hover:bg-[rgb(var(--accent-hover))] disabled:opacity-40 disabled:cursor-not-allowed transition-all shrink-0" title="发送">

@@ -33,6 +33,7 @@ export interface EncryptedMessage {
   replyTo?: number; // 回复的消息 timestamp
   reactions?: Record<string, string[]>; // emoji → participantIds[]
   imageData?: string; // base64 图片数据（加密后）
+  gifUrl?: string; // GIF URL（不加密，公开URL）
 }
 
 export interface Participant {
