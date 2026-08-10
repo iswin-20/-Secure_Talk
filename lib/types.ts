@@ -26,10 +26,16 @@ export interface StoredData {
 
 // 新增 Chat 相关类型
 export interface EncryptedMessage {
-  sender: 'A' | 'B';
+  sender: string;
   timestamp: number;
   content?: string; // 这是加密后的消息内容
   file?: FileMetadata; // <-- 新增, 加密后的文件元数据
+}
+
+export interface Participant {
+  id: string;
+  color: string;
+  claimed?: boolean;
 }
 
 export interface ChatData {
@@ -38,4 +44,5 @@ export interface ChatData {
   messages: EncryptedMessage[];
   inactiveHours: number;
   ipLockingEnabled?: boolean; // 是否启用 IP 锁定
+  participants: Participant[];
 }

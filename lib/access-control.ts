@@ -7,13 +7,13 @@ import type { ChatData } from './types';
 /**
  * 检查并执行 IP 锁定逻辑
  * @param chatId - The ID of the chat.
- * @param participant - 'A' or 'B'.
+ * @param participant - The participant ID string.
  * @param requestIp - The IP address of the incoming request.
  * @returns An object { success: boolean, error?: string }
  */
 export async function checkIpAccess(
   chatId: string,
-  participant: 'A' | 'B',
+  participant: string,
   requestIp: string
 ): Promise<{ success: boolean; error?: string }> {
   try {

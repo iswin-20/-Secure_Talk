@@ -1,7 +1,6 @@
 // middleware.ts
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { ipRateLimit } from '@/lib/rateLimit';
 
 // 根据您的 action.ts (nanoid(7))，我们定义一个严格的正则表达式来匹配聊天室路径
 // 它只匹配 /chat/ 后面跟着7个字符（字母、数字、下划线、中划线）的路径
@@ -22,13 +21,9 @@ export async function middleware(request: NextRequest) {
   const isProtectedRootView = pathname === '/' && v && (v.length === 5 || v.length === 6);
   const isProtectedApiRequest = pathname === '/api/generate' || pathname === '/api/verify';
 
-  // 如果请求命中了任何一个受保护的规则，则执行速率限制
+  // 如果请求命中了任何一个受保护的规则
   if (isChatRoomPath || isProtectedRootView || isProtectedApiRequest) {
-    const rateLimitResponse = await ipRateLimit(ip);
-    if (rateLimitResponse) {
-      // 如果被限流，则直接返回限流响应
-      return rateLimitResponse;
-    }
+    // Rate limiting disabled (SQLite mode)
   }
 
   // --- 【第二步】处理路由访问控制 ---
@@ -66,7 +61,7 @@ export async function middleware(request: NextRequest) {
 export const config = {
   // 您的 matcher 保持不变，它很好地排除了静态资源
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    '/((?!_next/static|_next/image|favicon.ico|sprite.png).*)',
   ],
 };
 

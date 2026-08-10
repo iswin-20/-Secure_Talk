@@ -1,8 +1,9 @@
 // app/chat/[id]/page.tsx
-import { decrypt } from '@/lib/crypto'; // 服务端解密
-import { getChatAccessData } from '../actions';
+import { decrypt } from '@/lib/crypto';
+import { getChatAccessData, getChatHistory } from '../actions';
 import ChatClient from './ChatClient';
-import { headers } from 'next/headers'; // <-- Import headers
+import RoleSelector from './RoleSelector';
+import { headers } from 'next/headers';
 import { checkIpAccess } from '@/lib/access-control';
 
 interface ChatPageProps {
@@ -12,34 +13,52 @@ interface ChatPageProps {
 
 export default async function ChatPage({ params, searchParams }: ChatPageProps) {
   const chatId = params.id;
-  const participant = searchParams.p === 'A' || searchParams.p === 'B' ? searchParams.p : undefined;
+  const participant = typeof searchParams.p === 'string' && searchParams.p.length > 0 ? searchParams.p : undefined;
 
+  // No participant selected — show role selector
   if (!participant) {
-    return <div className="text-center p-8 text-red-500">Invalid participant ID. The URL must contain `?p=A` or `?p=B`.</div>;
+    const { participants, error } = await getChatHistory(chatId);
+    if (error) {
+      return <div className="text-center p-8 text-red-500">{error}</div>;
+    }
+    return <RoleSelector chatId={chatId} participants={participants || []} />;
   }
 
-  // 检查 IP 访问权限
+  // Check IP access
   const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
   const ipAccessResult = await checkIpAccess(chatId, participant, ip);
 
   if (!ipAccessResult.success) {
-    // 如果 IP 检查失败，显示错误信息并终止
     return <div className="text-center p-8 text-xl font-bold text-red-600">{ipAccessResult.error}</div>;
   }
 
-  // 获取加密的访问密码
+  // Get participants list to validate participant and get color
+  const { participants, error: participantsError } = await getChatHistory(chatId);
+  if (participantsError) {
+    return <div className="text-center p-8 text-red-500">{participantsError}</div>;
+  }
+
+  // Validate that this participant exists in the chat
+  const participantData = participants?.find(p => p.id === participant);
+  if (!participantData) {
+    return <div className="text-center p-8 text-red-500">This participant is not part of this chat.</div>;
+  }
+
+  // Get encrypted access password
   const { accessPasswordCipher, error } = await getChatAccessData(chatId);
   if (error) {
     return <div className="text-center p-8 text-red-500">{error}</div>;
   }
-  
-  // 在服务端解密访问密码
+
+  // Decrypt access password on server
   const accessPassword = accessPasswordCipher ? decrypt(accessPasswordCipher) : undefined;
-  
+
   return (
     <ChatClient
       chatId={chatId}
       myIdentity={participant}
+      myColor={participantData.color}
+      participants={participants || []}
       requiredAccessPassword={accessPassword}
     />
   );

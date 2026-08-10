@@ -1,34 +1,28 @@
-//app/chat/CreateChatClient.tsx
-'use client';
+"use client";
 
-import { useState, useTransition } from 'react';
-import { createChat, generateBurnLinkForChat } from './actions';
-import { generateKey } from '@/lib/chat-crypto';
+import { useState, useTransition } from "react";
+import { createChat, generateBurnLinkForChat } from "./actions";
+import { generateKey } from "@/lib/chat-crypto";
 
-// 定义结果状态的接口，使其更灵活
 interface ResultState {
-  linkA: string;
-  linkB?: string;
+  links: string[];
   burnLink?: string;
 }
 
 export default function CreateChatClient() {
-  const [adminPassword, setAdminPassword] = useState('');
-  const [accessPassword, setAccessPassword] = useState('');
+  const [adminPassword, setAdminPassword] = useState("");
+  const [accessPassword, setAccessPassword] = useState("");
   const [useAccessPassword, setUseAccessPassword] = useState(false);
   const [inactiveHours, setInactiveHours] = useState(72);
-  const [error, setError] = useState('');
+  const [participantCount, setParticipantCount] = useState(2);
+  const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
   const [useIpLocking, setUseIpLocking] = useState(false);
-
-  // --- 新增和修改的状态 ---
   const [result, setResult] = useState<ResultState | null>(null);
-  const [copiedLink, setCopiedLink] = useState<'a' | 'b' | 'burn' | null>(null);
-  // 新增：独立的阅后即焚选项
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
   const [useBurnLinkToSend, setUseBurnLinkToSend] = useState(false);
 
-  // 辅助函数：复制到剪贴板
-  const handleCopyToClipboard = (text: string, linkType: 'a' | 'b' | 'burn') => {
+  const handleCopyToClipboard = (text: string, linkType: string) => {
     navigator.clipboard.writeText(text);
     setCopiedLink(linkType);
     setTimeout(() => setCopiedLink(null), 2000);
@@ -36,177 +30,262 @@ export default function CreateChatClient() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
     setResult(null);
 
     startTransition(async () => {
-      // 1. 在客户端生成唯一的加密密钥
       const chatKey = await generateKey();
-
-      // 2. 调用 Server Action 创建聊天室
       const createResult = await createChat(
         adminPassword,
         useAccessPassword ? accessPassword : undefined,
         inactiveHours,
-        useIpLocking
+        useIpLocking,
+        participantCount
       );
 
       if (!createResult.success || !createResult.links) {
-        setError(createResult.error || '创建聊天失败，请稍后再试。');
+        setError(createResult.error || "创建聊天失败");
         return;
       }
 
-      const finalLinkA = `${createResult.links.a}#${chatKey}`;
-      const finalLinkB = `${createResult.links.b}#${chatKey}`;
+      const firstLink = createResult.links[0];
+      const baseUrl = firstLink.split('?')[0];
+      const finalLink = `${baseUrl}#${chatKey}`;
 
-      // 3. 【核心修改】根据是否勾选“阅后即焚”来决定下一步操作
       if (useBurnLinkToSend) {
-        // --- 如果使用阅后即焚链接 ---
-        let messageForBurnLink = '';
-        
-        // 根据是否有访问密码，准备不同的附加消息
-        if (useAccessPassword && accessPassword) {
-          messageForBurnLink = `聊天室密码为：${accessPassword}，以下是端到端加密聊天链接。请妥善保存，链接丢失将无法恢复。`;
-        } else {
-          messageForBurnLink = '以下是端到端加密的聊天链接。请妥善保存，链接丢失将无法恢复。';
-        }
+        const messageForBurnLink = useAccessPassword && accessPassword
+          ? `聊天室密码：${accessPassword}，端到端加密链接如下。`
+          : "端到端加密聊天链接，请妥善保存。";
 
-        // 【修改点】用 Server Action 替换 fetch
         const burnLinkResult = await generateBurnLinkForChat(
-            adminPassword,
-            messageForBurnLink,
-            finalLinkB // 将 B 的链接作为核心机密传递
+          adminPassword,
+          messageForBurnLink,
+          finalLink
         );
-        
         if (burnLinkResult.error || !burnLinkResult.url) {
-            setError(`创建聊天成功，但生成阅后即焚链接失败: ${burnLinkResult.error || 'Unknown error'}`);
-            // 作为回退，仍然显示参与者A的链接
-            setResult({ linkA: finalLinkA });
+          setError(`阅后即焚链接生成失败: ${burnLinkResult.error}`);
+          setResult({ links: [finalLink] });
         } else {
-            setResult({
-                linkA: finalLinkA,
-                burnLink: burnLinkResult.url,
-            });
+          setResult({ links: [finalLink], burnLink: burnLinkResult.url });
         }
-
       } else {
-        // --- 传统方式：直接显示两个链接 ---
-        setResult({
-          linkA: finalLinkA,
-          linkB: finalLinkB,
-        });
+        setResult({ links: [finalLink] });
       }
     });
   };
 
   if (result) {
     return (
-      <div className="space-y-6">
-        <h2 className="font-bold text-green-600 dark:text-green-400 text-xl">聊天已创建！</h2>
-        <p className="text-red-500 dark:text-red-400">警告：这些是唯一凭证，一旦丢失链接将无法恢复聊天内容。</p>
-        
-        <div className="space-y-2">
-          <label className="block font-semibold text-gray-900 dark:text-gray-100">你的链接 (参与者 A):</label>
-          <div className="flex space-x-2">
-            <input type="text" readOnly value={result.linkA} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 transition-colors" onClick={e => e.currentTarget.select()} />
-            <button onClick={() => handleCopyToClipboard(result.linkA, 'a')} className="px-4 py-2 font-bold text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 rounded-md w-32 transition-colors">
-              {copiedLink === 'a' ? '已复制!' : '复制'}
-            </button>
+      <div className="w-full max-w-lg animate-scale-in">
+        <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl p-8 space-y-6">
+          <div>
+            <h2 className="font-display text-xl font-bold text-[rgb(var(--text-primary))]">聊天已创建</h2>
+            <p className="mt-1 text-sm text-red-500 font-medium">这是访问聊天室的唯一凭证，丢失后无法恢复。</p>
           </div>
-        </div>
 
-        {result.linkB && (
+          {/* Unified Link */}
           <div className="space-y-2">
-            <label className="block font-semibold text-gray-900 dark:text-gray-100">你朋友的链接 (参与者 B):</label>
-            <div className="flex space-x-2">
-                <input type="text" readOnly value={result.linkB} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 transition-colors" onClick={e => e.currentTarget.select()} />
-                <button onClick={() => handleCopyToClipboard(result.linkB!, 'b')} className="px-4 py-2 font-bold text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 rounded-md w-32 transition-colors">
-                {copiedLink === 'b' ? '已复制!' : '复制'}
-                </button>
+            <label className="text-xs font-semibold uppercase tracking-wider text-[rgb(var(--text-muted))]">
+              聊天链接（分享给所有人）
+            </label>
+            <p className="text-sm text-[rgb(var(--text-secondary))]">
+              每个人打开后选择不同角色，先到先得。
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                readOnly
+                value={result.links[0]}
+                className="flex-1 px-3 py-2.5 text-sm bg-[rgb(var(--surface-tertiary))] border border-[rgb(var(--border))] rounded-xl text-[rgb(var(--text-primary))]"
+                onClick={(e) => (e.target as HTMLInputElement).select()}
+              />
+              <button
+                onClick={() => handleCopyToClipboard(result.links[0], "main")}
+                className="px-4 py-2.5 text-sm font-semibold text-white bg-[rgb(var(--accent))] hover:bg-[rgb(var(--accent-hover))] rounded-xl transition-colors shrink-0"
+              >
+                {copiedLink === "main" ? "已复制" : "复制"}
+              </button>
             </div>
           </div>
-        )}
 
-        {result.burnLink && (
-            <div className="space-y-2 p-4 border-l-4 border-yellow-400 dark:border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20 transition-colors">
-                <label className="block font-semibold text-yellow-800 dark:text-yellow-300">给朋友的一次性链接:</label>
-                <p className='text-sm text-yellow-700 dark:text-yellow-400'>请将下面这个**一次性**链接发给参与者B。此链接包含他们的聊天凭证，访问一次后即销毁。</p>
-                 <div className="flex space-x-2">
-                    <input type="text" readOnly value={result.burnLink} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 transition-colors" onClick={e => e.currentTarget.select()} />
-                    <button onClick={() => handleCopyToClipboard(result.burnLink!, 'burn')} className="px-4 py-2 font-bold text-white bg-yellow-500 hover:bg-yellow-600 dark:bg-yellow-600 dark:hover:bg-yellow-700 rounded-md w-32 transition-colors">
-                    {copiedLink === 'burn' ? '已复制!' : '复制'}
-                    </button>
-                </div>
+          {/* Burn Link */}
+          {result.burnLink && (
+            <div className="space-y-2 p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800">
+              <label className="text-xs font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300">一次性链接</label>
+              <p className="text-sm text-amber-600 dark:text-amber-400">将下面链接发给对方，访问一次后即销毁。</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={result.burnLink}
+                  className="flex-1 px-3 py-2.5 text-sm bg-white dark:bg-amber-900/40 border border-amber-200 dark:border-amber-700 rounded-xl"
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                />
+                <button
+                  onClick={() => handleCopyToClipboard(result.burnLink!, "burn")}
+                  className="px-4 py-2.5 text-sm font-semibold text-white bg-amber-500 hover:bg-amber-600 rounded-xl transition-colors shrink-0"
+                >
+                  {copiedLink === "burn" ? "已复制" : "复制"}
+                </button>
+              </div>
             </div>
-        )}
+          )}
 
-        <button onClick={() => setResult(null)} className="w-full px-4 py-2 mt-4 font-bold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-700 dark:hover:bg-indigo-800 rounded-md transition-colors">
+          <button
+            onClick={() => setResult(null)}
+            className="w-full py-2.5 text-sm font-semibold text-[rgb(var(--accent))] hover:bg-[rgb(var(--accent-light))] rounded-xl transition-colors"
+          >
             创建另一个聊天
-        </button>
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label className="block font-semibold text-gray-900 dark:text-gray-100">管理员密码</label>
-        <input type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 transition-colors" required />
-      </div>
-
-      <div>
-        <label className="flex items-center text-gray-900 dark:text-gray-100">
-          <input type="checkbox" checked={useAccessPassword} onChange={(e) => setUseAccessPassword(e.target.checked)} className="mr-2 text-blue-600 focus:ring-blue-500" />
-          需要独立访问密码
-        </label>
-      </div>
-
-      {useAccessPassword && (
-        <div className='pl-6'>
-          <label className="block font-semibold text-gray-900 dark:text-gray-100">聊天访问密码</label>
-          <input type="password" value={accessPassword} onChange={(e) => setAccessPassword(e.target.value)} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 transition-colors" required={useAccessPassword} />
+    <div className="w-full max-w-lg animate-scale-in">
+      <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl p-8">
+        <div className="mb-8">
+          <h1 className="font-display text-2xl font-bold text-[rgb(var(--text-primary))]">创建安全聊天</h1>
+          <p className="mt-1.5 text-sm text-[rgb(var(--text-secondary))]">端到端加密，阅后即焚</p>
         </div>
-      )}
 
-      {/* --- 新增的独立 Checkbox --- */}
-      <div className="pt-2">
-        <label className="flex items-center text-gray-900 dark:text-gray-100">
-          <input type="checkbox" checked={useBurnLinkToSend} onChange={(e) => setUseBurnLinkToSend(e.target.checked)} className="mr-2 text-blue-600 focus:ring-blue-500" />
-          使用&ldquo;阅后即焚&rdquo;链接发送聊天链接
-        </label>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 pl-6">
-          将为参与者B生成一个一次性链接来传递其聊天凭证，而不是直接显示。
-        </p>
-      </div>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Admin Password */}
+          <div>
+            <label className="block text-sm font-semibold text-[rgb(var(--text-primary))] mb-1.5">管理员密码</label>
+            <input
+              type="password"
+              value={adminPassword}
+              onChange={(e) => setAdminPassword(e.target.value)}
+              className="w-full px-4 py-2.5 text-sm bg-[rgb(var(--surface-secondary))] border border-[rgb(var(--border))] rounded-xl text-[rgb(var(--text-primary))] placeholder:text-[rgb(var(--text-muted))] focus:border-[rgb(var(--accent))] focus:ring-2 focus:ring-[rgb(var(--accent))]/10 outline-none transition-all"
+              placeholder="输入管理员密码"
+              required
+              autoFocus
+            />
+          </div>
 
-      <div className="pt-2 border-t border-gray-200 dark:border-gray-700 mt-4">
-        <label className="flex items-center font-semibold text-gray-900 dark:text-gray-100">
-          <input type="checkbox" checked={useIpLocking} onChange={(e) => setUseIpLocking(e.target.checked)} className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500" />
-          启用 IP 锁定 (高级安全)
-        </label>
-        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1 pl-6 space-y-1">
-          <p>
-            启用后，每个参与者（A 和 B）的链接将只能从其首次访问的 IP 地址进行访问。
-          </p>
-          {useIpLocking && (
-            <p className="font-bold text-red-600 dark:text-red-400">
-              警告：请勿在手机网络或动态 IP 环境下使用此功能！如果您的 IP 地址发生变化，您将永久失去对聊天的访问权限。
-            </p>
+          {/* Access Password Toggle */}
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={useAccessPassword}
+              onChange={(e) => setUseAccessPassword(e.target.checked)}
+              className="w-4 h-4 rounded border-[rgb(var(--border))] text-[rgb(var(--accent))] focus:ring-[rgb(var(--accent))]"
+            />
+            <span className="text-sm text-[rgb(var(--text-primary))]">需要聊天访问密码</span>
+          </label>
+
+          {useAccessPassword && (
+            <div className="pl-7 animate-slide-up">
+              <label className="block text-sm font-semibold text-[rgb(var(--text-primary))] mb-1.5">聊天访问密码</label>
+              <input
+                type="password"
+                value={accessPassword}
+                onChange={(e) => setAccessPassword(e.target.value)}
+                className="w-full px-4 py-2.5 text-sm bg-[rgb(var(--surface-secondary))] border border-[rgb(var(--border))] rounded-xl text-[rgb(var(--text-primary))] placeholder:text-[rgb(var(--text-muted))] focus:border-[rgb(var(--accent))] outline-none transition-all"
+                placeholder="设置访问密码"
+                required={useAccessPassword}
+              />
+            </div>
           )}
-        </div>
+
+          {/* Burn Link Toggle */}
+          <div className="pt-2">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={useBurnLinkToSend}
+                onChange={(e) => setUseBurnLinkToSend(e.target.checked)}
+                className="w-4 h-4 rounded border-[rgb(var(--border))] text-[rgb(var(--accent))] focus:ring-[rgb(var(--accent))] mt-0.5"
+              />
+              <div>
+                <span className="text-sm text-[rgb(var(--text-primary))]">阅后即焚链接发送</span>
+                <p className="text-xs text-[rgb(var(--text-muted))] mt-0.5">生成一次性链接传递对方凭证，阅览后自动销毁。</p>
+              </div>
+            </label>
+          </div>
+
+          {/* IP Lock */}
+          <div className="pt-2 border-t border-[rgb(var(--border))]">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={useIpLocking}
+                onChange={(e) => setUseIpLocking(e.target.checked)}
+                className="w-4 h-4 rounded border-[rgb(var(--border))] text-[rgb(var(--accent))] focus:ring-[rgb(var(--accent))] mt-0.5"
+              />
+              <div>
+                <span className="text-sm font-semibold text-[rgb(var(--text-primary))]">IP 锁定</span>
+                <p className="text-xs text-[rgb(var(--text-muted))] mt-0.5">每个链接只能从首次访问的 IP 打开。</p>
+                {useIpLocking && (
+                  <p className="text-xs text-red-500 font-medium mt-1 animate-fade-in">
+                    动态 IP 或移动网络下慎用，IP 变化将永久失去访问权限。
+                  </p>
+                )}
+              </div>
+            </label>
+          </div>
+
+          {/* Participant Count */}
+          <div>
+            <label htmlFor="participantCount" className="block text-sm font-semibold text-[rgb(var(--text-primary))] mb-1.5">
+              参与者人数
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                id="participantCount"
+                value={participantCount}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10) || 2;
+                  setParticipantCount(Math.max(2, Math.min(val, 15)));
+                }}
+                className="w-24 px-4 py-2.5 text-sm bg-[rgb(var(--surface-secondary))] border border-[rgb(var(--border))] rounded-xl text-[rgb(var(--text-primary))] focus:border-[rgb(var(--accent))] outline-none transition-all"
+                min={2}
+                max={15}
+                required
+              />
+              <span className="text-sm text-[rgb(var(--text-secondary))]">人（2-15人）</span>
+            </div>
+          </div>
+
+          {/* Inactive Hours */}
+          <div>
+            <label htmlFor="inactiveHours" className="block text-sm font-semibold text-[rgb(var(--text-primary))] mb-1.5">
+              失效时间
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                id="inactiveHours"
+                value={inactiveHours}
+                onChange={(e) => setInactiveHours(parseInt(e.target.value, 10) || 1)}
+                className="w-24 px-4 py-2.5 text-sm bg-[rgb(var(--surface-secondary))] border border-[rgb(var(--border))] rounded-xl text-[rgb(var(--text-primary))] focus:border-[rgb(var(--accent))] outline-none transition-all"
+                min={1}
+                required
+              />
+              <span className="text-sm text-[rgb(var(--text-secondary))]">小时无消息后自动销毁</span>
+            </div>
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div className="p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            </div>
+          )}
+
+          {/* Submit */}
+          <button
+            type="submit"
+            disabled={isPending}
+            className="w-full py-3 text-sm font-semibold text-white bg-[rgb(var(--accent))] hover:bg-[rgb(var(--accent-hover))] rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-[rgb(var(--accent))]/20 hover:shadow-xl hover:shadow-[rgb(var(--accent))]/30"
+          >
+            {isPending ? "创建中..." : "创建聊天"}
+          </button>
+        </form>
       </div>
-
-      <div>
-        <label htmlFor="inactiveHours" className="block font-semibold text-gray-900 dark:text-gray-100">失效时间 (小时)</label>
-        <input type="number" id="inactiveHours" value={inactiveHours} onChange={(e) => setInactiveHours(parseInt(e.target.value, 10) || 0)} className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 transition-colors" min="1" required />
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">如果在此期间没有发送新消息，聊天将被销毁。</p>
-      </div>
-
-      <button type="submit" disabled={isPending} className="w-full px-4 py-2 font-bold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-700 dark:hover:bg-indigo-800 rounded-md disabled:bg-indigo-300 dark:disabled:bg-indigo-500 transition-colors">
-        {isPending ? '创建中...' : '创建聊天'}
-      </button>
-
-      {error && <p className="text-red-500 dark:text-red-400 mt-2">{error}</p>}
-    </form>
+    </div>
   );
 }

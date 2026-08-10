@@ -31,7 +31,7 @@ function SubmitButton({ isProcessing }: { isProcessing: boolean }) {
   if (isProcessing) text = '正在处理...';
   if (pending) text = '正在生成...';
   return (
-    <button type="submit" className="w-full px-4 py-2 font-bold text-white bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-800 rounded-md disabled:bg-blue-300 dark:disabled:bg-blue-500 transition-colors">
+    <button type="submit" disabled={isProcessing || pending} className="w-full py-3 text-sm font-semibold text-white bg-[rgb(var(--accent))] hover:bg-[rgb(var(--accent-hover))] rounded-xl disabled:opacity-50 transition-all">
       {text}
     </button>
   );
@@ -189,30 +189,29 @@ export default function SendPage() {
 
 
   return (
-        <div className="w-full max-w-md p-8 space-y-6 bg-white dark:bg-gray-800 rounded-lg shadow-md transition-colors duration-300">
+        <div className="w-full max-w-lg bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl p-8 animate-scale-in">
           {!result?.url ? (
             <>
-              <div className="flex items-center justify-between">
-                {/* 左侧：标题 */}
-                <div className="flex items-center gap-3">
-                  <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">生成安全密码</h1>
+              <div className="flex items-center justify-between mb-8">
+                <div>
+                  <h1 className="font-display text-2xl font-bold text-[rgb(var(--text-primary))]">生成安全密码</h1>
+                  <p className="mt-1 text-sm text-[rgb(var(--text-secondary))]">加密分享敏感信息</p>
                 </div>
-                {/* 右侧：Chat 按钮 */}
-                <Link 
-                  href="/chat" 
-                  className="px-4 py-2 font-semibold text-cyan-600 dark:text-cyan-400 border-2 border-cyan-500 dark:border-cyan-400 rounded-lg hover:bg-cyan-50 dark:hover:bg-cyan-900 transition-colors"
+                <Link
+                  href="/chat"
+                  className="px-4 py-2 text-sm font-semibold text-[rgb(var(--accent))] border-2 border-[rgb(var(--accent))] rounded-xl hover:bg-[rgb(var(--accent-light))] transition-colors"
                 >
                   聊天室
                 </Link>
               </div>
-              <form key={_formKey} ref={formRef} onSubmit={handleSubmit} className="space-y-4"> {/* <-- 改为 onSubmit */}
+              <form key={_formKey} ref={formRef} onSubmit={handleSubmit} className="space-y-5">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">管理员密码</label>
-                  <input name="adminPassword" type="password" required className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 transition-colors" />
+                  <label className="block text-sm font-semibold text-[rgb(var(--text-primary))] mb-1.5">管理员密码</label>
+                  <input name="adminPassword" type="password" required className="w-full px-4 py-2.5 text-sm bg-[rgb(var(--surface-secondary))] border border-[rgb(var(--border))] rounded-xl text-[rgb(var(--text-primary))] placeholder:text-[rgb(var(--text-muted))] focus:border-[rgb(var(--accent))] focus:ring-2 focus:ring-[rgb(var(--accent))]/10 outline-none transition-all" />
                 </div>
                 <div>
-                  <label className="flex items-center text-gray-700 dark:text-gray-300">
-                    <input name="enable2FA" type="checkbox" checked={enable2FA} onChange={() => setEnable2FA(!enable2FA)} value={String(enable2FA)} className="mr-2 text-blue-600 focus:ring-blue-500" disabled={useE2EE || !isResendConfigured} />
+                  <label className="flex items-center text-sm font-semibold text-[rgb(var(--text-primary))]">
+                    <input name="enable2FA" type="checkbox" checked={enable2FA} onChange={() => setEnable2FA(!enable2FA)} value={String(enable2FA)} className="mr-2 w-4 h-4 rounded border-[rgb(var(--border))] text-[rgb(var(--accent))]" disabled={useE2EE || !isResendConfigured} />
                     启用二次验证 (2FA)
                   </label>
                   {useE2EE && (
@@ -224,31 +223,31 @@ export default function SendPage() {
                 </div>
                 {enable2FA && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">邮箱地址</label>
-                    <input name="email" type="email" required={enable2FA} className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 transition-colors" />
+                    <label className="text-sm font-semibold text-[rgb(var(--text-primary))] mb-1.5 block">邮箱地址</label>
+                    <input name="email" type="email" required={enable2FA} className="w-full px-4 py-2.5 text-sm bg-[rgb(var(--surface-secondary))] border border-[rgb(var(--border))] rounded-xl text-[rgb(var(--text-primary))] focus:border-[rgb(var(--accent))] focus:ring-2 focus:ring-[rgb(var(--accent))]/10 outline-none transition-all" />
                   </div>
                 )}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">失效时间 (小时, 默认72)</label>
-                  <input name="expiry" type="number" placeholder="72" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 transition-colors" />
+                  <label className="text-sm font-semibold text-[rgb(var(--text-primary))] mb-1.5 block">失效时间 (小时, 默认72)</label>
+                  <input name="expiry" type="number" placeholder="72" className="w-full px-4 py-2.5 text-sm bg-[rgb(var(--surface-secondary))] border border-[rgb(var(--border))] rounded-xl text-[rgb(var(--text-primary))] focus:border-[rgb(var(--accent))] focus:ring-2 focus:ring-[rgb(var(--accent))]/10 outline-none transition-all" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">附加消息 (可缺省)</label>
-                  <input name="message" type="text" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 transition-colors" />
+                  <label className="text-sm font-semibold text-[rgb(var(--text-primary))] mb-1.5 block">附加消息 (可缺省)</label>
+                  <input name="message" type="text" className="w-full px-4 py-2.5 text-sm bg-[rgb(var(--surface-secondary))] border border-[rgb(var(--border))] rounded-xl text-[rgb(var(--text-primary))] focus:border-[rgb(var(--accent))] focus:ring-2 focus:ring-[rgb(var(--accent))]/10 outline-none transition-all" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">自定义密码 (可缺省)</label>
-                  <input name="customPassword" type="text" className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 transition-colors" />
+                  <label className="text-sm font-semibold text-[rgb(var(--text-primary))] mb-1.5 block">自定义密码 (可缺省)</label>
+                  <input name="customPassword" type="text" className="w-full px-4 py-2.5 text-sm bg-[rgb(var(--surface-secondary))] border border-[rgb(var(--border))] rounded-xl text-[rgb(var(--text-primary))] focus:border-[rgb(var(--accent))] focus:ring-2 focus:ring-[rgb(var(--accent))]/10 outline-none transition-all" />
                 </div>
                 <div>
-                  <label className="flex items-center font-medium text-gray-700 dark:text-gray-300">
+                  <label className="flex items-center text-sm font-semibold text-[rgb(var(--text-primary))]">
                     <input 
                       name="useE2EE" 
                       type="checkbox" 
                       checked={useE2EE} 
                       onChange={(e) => setUseE2EE(e.target.checked)} 
                       value="true" // <-- The value when checked 
-                      className="mr-2 h-4 w-4" 
+                      className="mr-2 w-4 h-4 rounded border-[rgb(var(--border))] text-[rgb(var(--accent))]" 
                       disabled={enable2FA}
                     />
                     启用端到端加密 (E2EE)
@@ -263,15 +262,15 @@ export default function SendPage() {
                   )}
                 </div>
                 <div>
-                  <label className="flex items-center text-gray-700 dark:text-gray-300">
-                    <input name="burnAfterRead" type="checkbox" checked={burnAfterRead} onChange={() => setBurnAfterRead(!burnAfterRead)} value={String(burnAfterRead)} className="mr-2 text-blue-600 focus:ring-blue-500" />
+                  <label className="flex items-center text-sm font-semibold text-[rgb(var(--text-primary))]">
+                    <input name="burnAfterRead" type="checkbox" checked={burnAfterRead} onChange={() => setBurnAfterRead(!burnAfterRead)} value={String(burnAfterRead)} className="mr-2 w-4 h-4 rounded border-[rgb(var(--border))] text-[rgb(var(--accent))]" />
                     强制阅后即焚
                   </label>
                 </div>
                 {/* --- 新增: 条件渲染的文件上传 --- */}
                 {isUploadEnabled && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">附加文件 (可选, 最大 {maxUploadSizeMB}MB)</label>
+                    <label className="text-sm font-semibold text-[rgb(var(--text-primary))] mb-1.5 block">附加文件 (可选, 最大 {maxUploadSizeMB}MB)</label>
                     <input 
                       name="file" 
                       type="file"
@@ -282,41 +281,41 @@ export default function SendPage() {
                 )}
                 {isProcessing && selectedFile && (
                   <div className="my-2">
-                    <p className="text-sm text-blue-600 dark:text-blue-400">正在处理文件: {uploadProgress}%</p>
-                    <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-                      <div className="bg-blue-600 dark:bg-blue-500 h-2.5 rounded-full transition-all" style={{ width: `${uploadProgress}%` }}></div>
+                    <p className="text-sm text-[rgb(var(--accent))]">正在处理文件: {uploadProgress}%</p>
+                    <div className="w-full bg-[rgb(var(--surface-secondary))] rounded-full h-2.5">
+                      <div className="bg-[rgb(var(--accent))] h-2.5 rounded-full transition-all" style={{ width: `${uploadProgress}%` }}></div>
                     </div>
                   </div>
                 )}
 
                 <SubmitButton isProcessing={isProcessing} />
                   {(result?.error || clientError) && (
-                    <div className="text-red-600 dark:text-red-400">
-                      <p>错误: {result?.error || clientError}</p>
+                    <div className="rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3">
+                      <p className="text-sm text-red-600 dark:text-red-400">错误: {result?.error || clientError}</p>
                     </div>
                 )}
               </form>
             </>
           ) : (
 
-             <div className="mt-6 p-4 border border-gray-200 dark:border-gray-600 rounded-md text-center">
+             <div className="mt-6 p-6 bg-[rgb(var(--surface-secondary))] border border-[rgb(var(--border))] rounded-2xl text-center">
                 <h2 className="text-xl font-bold text-green-600 dark:text-green-400 mb-4">生成成功!</h2>
                 {result.password && (
                   <div className="mb-4">
-                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300">系统生成密码:</p>
-                    <pre className="p-2 mt-1 font-mono bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded break-all">{result.password}</pre>
+                    <p className="text-sm font-semibold text-[rgb(var(--text-primary))] mb-2">系统生成密码:</p>
+                    <pre className="p-3 mt-1 font-mono text-sm bg-[rgb(var(--surface))] border border-[rgb(var(--border))] text-[rgb(var(--text-primary))] rounded-xl break-all">{result.password}</pre>
                   </div>
                 )}
                 {result.url && (
                   <>
-                    <p className="text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">您的安全链接:</p>
+                    <p className="text-sm font-semibold text-[rgb(var(--text-primary))] mb-2">您的安全链接:</p>
                     <div>
-                      <a href={result.url} target="_blank" rel="noopener noreferrer" className="p-2 mt-1 block text-blue-600 dark:text-blue-400 break-all bg-green-100 dark:bg-green-900 rounded-md hover:bg-green-200 dark:hover:bg-green-800 transition-colors">{result.url}</a>
+                      <a href={result.url} target="_blank" rel="noopener noreferrer" className="p-3 block text-sm text-[rgb(var(--accent))] break-all bg-[rgb(var(--accent-light))] rounded-xl hover:bg-[rgb(var(--accent-hover))] hover:text-white transition-all">{result.url}</a>
                     </div>
                   </>
 
                 )}
-                 <button onClick={handleReset} className="mt-6 w-full px-4 py-2 font-bold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-700 dark:hover:bg-indigo-800 rounded-md transition-colors">
+                 <button onClick={handleReset} className="mt-6 w-full py-3 text-sm font-semibold text-white bg-[rgb(var(--accent))] hover:bg-[rgb(var(--accent-hover))] rounded-xl transition-all">
                     创建另一个
                 </button>
             </div>

@@ -78,16 +78,16 @@ export default function DarkModeToggle() {
     };
 
     return (
-        <div className="group fixed bottom-5 left-5 z-50 flex flex-col items-start">
+        <div className="fixed bottom-5 left-5 z-50 flex flex-col items-start">
             {/* 选项面板 */}
             {showOptions && (
-                <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg shadow-lg mb-3 p-2 min-w-[120px]">
+                <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl shadow-lg mb-3 p-2 min-w-[120px]">
                     <button
                         onClick={() => handleThemeChange('light')}
-                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
+                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-colors ${
                             theme === 'light' 
-                                ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' 
-                                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-300'
+                                ? 'bg-[rgb(var(--accent-light))] text-[rgb(var(--accent))]' 
+                                : 'hover:bg-[rgb(var(--surface-secondary))] text-[rgb(var(--text-primary))]'
                         }`}
                     >
                         <SunIcon />
@@ -95,10 +95,10 @@ export default function DarkModeToggle() {
                     </button>
                     <button
                         onClick={() => handleThemeChange('dark')}
-                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
+                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-colors ${
                             theme === 'dark' 
-                                ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' 
-                                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-300'
+                                ? 'bg-[rgb(var(--accent-light))] text-[rgb(var(--accent))]' 
+                                : 'hover:bg-[rgb(var(--surface-secondary))] text-[rgb(var(--text-primary))]'
                         }`}
                     >
                         <MoonIcon />
@@ -106,10 +106,10 @@ export default function DarkModeToggle() {
                     </button>
                     <button
                         onClick={() => handleThemeChange('system')}
-                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
+                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-colors ${
                             theme === 'system' 
-                                ? 'bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300' 
-                                : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-300'
+                                ? 'bg-[rgb(var(--accent-light))] text-[rgb(var(--accent))]' 
+                                : 'hover:bg-[rgb(var(--surface-secondary))] text-[rgb(var(--text-primary))]'
                         }`}
                     >
                         <SystemIcon />
@@ -121,7 +121,7 @@ export default function DarkModeToggle() {
             {/* 浮动按钮 */}
             <button
                 onClick={() => setShowOptions(!showOptions)}
-                className="flex items-center justify-center bg-white dark:bg-gray-800 border dark:border-gray-700 p-3 rounded-full shadow-lg hover:shadow-xl transition-all duration-300 hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
+                className="flex items-center justify-center bg-[rgb(var(--surface))] border border-[rgb(var(--border))] p-2.5 rounded-xl shadow-lg hover:bg-[rgb(var(--surface-secondary))] transition-colors duration-200 text-[rgb(var(--text-secondary))]"
                 aria-label="Toggle theme"
             >
                 {getCurrentIcon()}

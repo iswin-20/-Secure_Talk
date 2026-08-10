@@ -13,14 +13,17 @@
     "@upstash/ratelimit": "^2.0.5",
     "@upstash/redis": "^1.35.1",
     "@vercel/blob": "^1.1.1",
+    "better-sqlite3": "^13.0.3",
     "crypto-js": "^4.2.0",
     "nanoid": "^5.1.5",
     "next": "14.2.30",
     "react": "^18",
     "react-dom": "^18",
-    "resend": "^4.6.0"
+    "resend": "^4.6.0",
+    "wechat-emoji-renderer": "^1.0.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",

@@ -12,6 +12,7 @@ export async function createChatRoomLogic(encryptionKey: string, expiryHours: nu
   const chatData: ChatData = {
     messages: [],
     inactiveHours: expiryHours,
+    participants: [],
   };
 
   await redis.set(chatId, JSON.stringify(chatData), { ex: expiryHours * 3600 });
