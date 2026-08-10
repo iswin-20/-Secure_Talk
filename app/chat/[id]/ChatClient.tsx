@@ -785,7 +785,7 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
 
         {showEmojiPicker && (
           <div className="absolute bottom-full left-4 right-4 mb-3 z-50 animate-slide-up">
-            <EmojiPicker spriteUrl="/sprite.png" onSelectEmoji={(emoji) => { setNewMessage(prev => prev + emoji.code); }} />
+            <EmojiPicker spriteUrl="/sprite.png" onSelectEmoji={(emoji) => { setNewMessage(prev => prev + emoji.code); setShowEmojiPicker(false); }} />
           </div>
         )}
         <div className="flex items-center gap-2">
