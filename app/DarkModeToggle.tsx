@@ -7,7 +7,7 @@ type Theme = 'system' | 'dark' | 'light';
 
 // 图标组件
 const SunIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="4"/>
         <path d="m12 2 0 2"/>
         <path d="m12 20 0 2"/>
@@ -21,13 +21,13 @@ const SunIcon = () => (
 );
 
 const MoonIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
     </svg>
 );
 
 const SystemIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect width="14" height="8" x="5" y="2" rx="2"/>
         <rect width="20" height="8" x="2" y="14" rx="2"/>
         <path d="M6 18h2"/>
@@ -78,10 +78,9 @@ export default function DarkModeToggle() {
     };
 
     return (
-        <div className="fixed bottom-5 left-5 z-50 flex flex-col items-start">
-            {/* 选项面板 */}
+        <div className="relative flex items-center">
             {showOptions && (
-                <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl shadow-lg mb-3 p-2 min-w-[120px]">
+                <div className="absolute top-full right-0 mt-2 bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl shadow-xl p-2 min-w-[120px] animate-scale-in">
                     <button
                         onClick={() => handleThemeChange('light')}
                         className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-colors ${
@@ -117,11 +116,9 @@ export default function DarkModeToggle() {
                     </button>
                 </div>
             )}
-
-            {/* 浮动按钮 */}
             <button
                 onClick={() => setShowOptions(!showOptions)}
-                className="flex items-center justify-center bg-[rgb(var(--surface))] border border-[rgb(var(--border))] p-2.5 rounded-xl shadow-lg hover:bg-[rgb(var(--surface-secondary))] transition-colors duration-200 text-[rgb(var(--text-secondary))]"
+                className="px-2 py-1.5 text-xs font-medium text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] hover:bg-[rgb(var(--surface-tertiary))] rounded-lg transition-colors"
                 aria-label="Toggle theme"
             >
                 {getCurrentIcon()}

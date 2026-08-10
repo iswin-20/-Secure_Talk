@@ -3,8 +3,6 @@ import type { Metadata } from "next";
 import { Inter, DM_Sans } from "next/font/google";
 import "./globals.css";
 import Footer from "./Footer";
-import TranslateButton from "./TranslateButton";
-import DarkModeToggle from "./DarkModeToggle";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -36,8 +34,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           {children}
         </main>
         <Footer />
-        <TranslateButton />
-        <DarkModeToggle />
       </body>
     </html>
   );

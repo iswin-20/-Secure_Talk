@@ -2,9 +2,11 @@
 
 import { useEffect, useState, useRef, useCallback } from "react";
 import { getChatHistory, postMessage, toggleReaction, deleteMyMessages, deleteSingleMessage, voteDestroyChat, leaveChat } from "../actions";
+import { translateText } from "../translate-action";
 import { encryptMessage, decryptMessage } from "@/lib/chat-crypto";
 import type { EncryptedMessage, Participant } from "@/lib/types";
 import FileMessage from "./FileMessage";
+import DarkModeToggle from "@/app/DarkModeToggle";
 import { WechatEmojiRenderer, EmojiPicker } from "wechat-emoji-renderer/react";
 
 const maxUploadSizeMB = 25;
@@ -34,7 +36,7 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
   const [isDestroyed, setIsDestroyed] = useState(false);
   const [hasLeft, setHasLeft] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const messageInputRef = useRef<HTMLInputElement>(null);
+  const messageInputRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -42,6 +44,18 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
   const [showReactionPicker, setShowReactionPicker] = useState<number | null>(null);
   const [destroyVotes, setDestroyVotes] = useState<string[]>([]);
   const [showDestroyMenu, setShowDestroyMenu] = useState(false);
+  const [dndEnabled, setDndEnabled] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("chat-dnd") === "true";
+    return false;
+  });
+  const isTabFocused = useRef(true);
+  const prevMsgCount = useRef(0);
+  const [translations, setTranslations] = useState<Record<number, string>>({});
+  const [translatingMsg, setTranslatingMsg] = useState<number | null>(null);
+  const [targetLang, setTargetLang] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("chat-translate-lang") || "zh-CN";
+    return "zh-CN";
+  });
   const dragCounterRef = useRef(0);
 
   // 1. Get encryption key from URL hash
@@ -91,26 +105,50 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
       if (result.messages) {
         const newMessages = result.messages;
         setMessages(prev => {
-          if (prev.length !== newMessages.length) return newMessages;
+          if (prev.length !== newMessages.length) {
+            // New messages arrived
+            if (!isTabFocused.current && !dndEnabled && prev.length > 0 && newMessages.length > prev.length) {
+              const latestMsg = newMessages[newMessages.length - 1];
+              const senderName = latestMsg.sender.substring(0, 4);
+              if (Notification.permission === "granted") {
+                new Notification(`安全聊天 · ${senderName}`, {
+                  body: latestMsg.content ? "新消息" : "📷 图片",
+                  icon: "/favicon.ico",
+                  tag: chatId,
+                });
+              }
+            }
+            return newMessages;
+          }
           if (prev.length === 0) return prev;
-          // Check if anything changed (messages or reactions)
           if (JSON.stringify(prev) !== JSON.stringify(newMessages)) return newMessages;
           return prev;
         });
         if (result.destroyVotes !== undefined) {
           setDestroyVotes(result.destroyVotes);
         }
+        prevMsgCount.current = newMessages.length;
       } else if (result.error) setError(result.error);
     } catch (e) {
       console.error("Fetch history error:", e);
     }
-  }, [isAuthenticated, accessKey, chatId]);
+  }, [isAuthenticated, accessKey, chatId, dndEnabled]);
 
   useEffect(() => {
     fetchHistory();
     const intervalId = setInterval(fetchHistory, 1000);
     return () => clearInterval(intervalId);
   }, [fetchHistory]);
+
+  // 4. Tab focus tracking + notification permission
+  useEffect(() => {
+    const handleVisibility = () => { isTabFocused.current = !document.hidden; };
+    document.addEventListener("visibilitychange", handleVisibility);
+    if (Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+    return () => document.removeEventListener("visibilitychange", handleVisibility);
+  }, []);
 
   // Shift key to focus input
   useEffect(() => {
@@ -141,11 +179,17 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
   }, [destroyVotes]);
 
   // Scroll to bottom
+  const initialLoadDone = useRef(false);
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
-    const isScrolledToBottom = container.scrollHeight - container.clientHeight <= container.scrollTop + 100;
-    if (isScrolledToBottom) messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const atBottom = container.scrollHeight - container.clientHeight <= container.scrollTop + 100;
+    // Always scroll on initial load, then only when user is at bottom
+    if (!initialLoadDone.current || atBottom) {
+      messagesEndRef.current?.scrollIntoView({ behavior: initialLoadDone.current ? "smooth" : "auto" });
+    }
+    initialLoadDone.current = true;
+    if (messages.length === 0) initialLoadDone.current = false;
   }, [messages, decryptedContent, decryptedImages]);
 
   const processImage = async (file: File) => {
@@ -258,7 +302,25 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
         setMessages(prev => [...prev, message]);
       } else setError(result.error || "消息发送失败");
     } catch { setError("加密失败"); }
-    finally { setIsSending(false); }
+    finally { setIsSending(false); messageInputRef.current?.focus(); }
+  };
+
+  const handleTranslate = async (msgTimestamp: number) => {
+    // Toggle: if already translated, remove it
+    if (translations[msgTimestamp]) {
+      setTranslations(prev => { const next = { ...prev }; delete next[msgTimestamp]; return next; });
+      return;
+    }
+    const text = decryptedContent[msgTimestamp];
+    if (!text || translatingMsg) return;
+    setTranslatingMsg(msgTimestamp);
+    try {
+      const result = await translateText(text, targetLang);
+      if (result.translation) {
+        setTranslations(prev => ({ ...prev, [msgTimestamp]: result.translation! }));
+      }
+    } catch { /* ignore */ }
+    finally { setTranslatingMsg(null); }
   };
 
   const handleReaction = async (msgTimestamp: number, emoji: string) => {
@@ -451,7 +513,7 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
       <div className="flex items-center justify-between px-5 py-3 border-b border-[rgb(var(--border))] bg-[rgb(var(--surface-secondary))]">
         <div className="flex items-center gap-3">
           <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: myColor }} />
-          <h1 className="font-display text-base font-bold text-[rgb(var(--text-primary))]">安全聊天 · {participants.length}人</h1>
+          <h1 className="font-display text-base font-bold text-[rgb(var(--text-primary))]">安全聊天 · {participants.filter(p => p.claimed).length}/{participants.length}人</h1>
         </div>
         <div className="flex items-center gap-2">
           {/* Vote progress */}
@@ -460,7 +522,29 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
               销毁 {destroyVotes.length}/{Math.max(1, Math.ceil(participants.filter(p => p.claimed).length / 2))}
             </span>
           )}
+          <button onClick={() => { const v = !dndEnabled; setDndEnabled(v); localStorage.setItem("chat-dnd", String(v)); }} className={`px-2 py-1.5 text-xs font-medium rounded-lg transition-colors ${dndEnabled ? "text-red-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20" : "text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] hover:bg-[rgb(var(--surface-tertiary))]"}`} title={dndEnabled ? "免打扰中" : "开启免打扰"}>
+            {dndEnabled ? (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9.143 17.082a24.248 24.248 0 003.844.148m-3.844-.148a23.856 23.856 0 01-5.455-1.31 8.964 8.964 0 002.3-5.542m10.155 6.852a23.856 23.856 0 005.456-1.31 8.964 8.964 0 01-2.3-5.542m0 0V9.75a5.25 5.25 0 00-10.5 0v2.076m10.5 0a3 3 0 01-1.818 2.76M3.75 3.75l16.5 16.5" /></svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" /></svg>
+            )}
+          </button>
+          <DarkModeToggle />
           <button onClick={fetchHistory} className="px-3 py-1.5 text-xs font-medium text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] hover:bg-[rgb(var(--surface-tertiary))] rounded-lg transition-colors">刷新</button>
+          {/* Language selector */}
+          <select
+            value={targetLang}
+            onChange={e => { setTargetLang(e.target.value); localStorage.setItem("chat-translate-lang", e.target.value); }}
+            className="text-[11px] bg-transparent border border-[rgb(var(--border))] rounded-lg px-1.5 py-1 text-[rgb(var(--text-secondary))] cursor-pointer outline-none"
+          >
+            <option value="zh-CN">中</option>
+            <option value="en">EN</option>
+            <option value="ja">日</option>
+            <option value="ko">韩</option>
+            <option value="fr">法</option>
+            <option value="de">德</option>
+            <option value="es">西</option>
+          </select>
           {/* Dropdown menu */}
           <div className="relative">
             <button onClick={() => setShowDestroyMenu(!showDestroyMenu)} className="px-2 py-1.5 text-xs font-medium text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] hover:bg-[rgb(var(--surface-tertiary))] rounded-lg transition-colors" title="更多操作">
@@ -489,62 +573,61 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
         </div>
       </div>
 
-      {/* Messages */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
-        {/* Vote banner — shown inside message area */}
-        {destroyVotes.length > 0 && (() => {
-          const votesNeeded = Math.max(1, Math.ceil(participants.filter(p => p.claimed).length / 2));
-          const votedParticipants = destroyVotes.map(vid => participants.find(p => p.id === vid)).filter(Boolean);
-          const hasVoted = destroyVotes.includes(myIdentity);
-          return (
-            <div className="sticky top-0 z-10 mx-auto max-w-md animate-slide-up">
-              <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl px-5 py-4 shadow-lg">
-                <div className="flex items-center gap-2 mb-3">
-                  <svg className="w-5 h-5 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-                  </svg>
-                  <span className="text-sm font-bold text-amber-700 dark:text-amber-400">投票销毁聊天</span>
-                  <span className="ml-auto text-xs font-bold text-amber-600 dark:text-amber-300">{destroyVotes.length}/{votesNeeded} 票</span>
-                </div>
-                {/* Progress bar */}
-                <div className="w-full h-2 bg-amber-200 dark:bg-amber-800 rounded-full mb-3 overflow-hidden">
-                  <div className="h-full bg-amber-500 rounded-full transition-all duration-500" style={{ width: `${Math.min(100, (destroyVotes.length / votesNeeded) * 100)}%` }} />
-                </div>
-                {/* Voter avatars */}
-                <div className="flex items-center gap-1.5 flex-wrap">
+      {/* Vote banner — always visible above messages */}
+      {destroyVotes.length > 0 && (() => {
+        const votesNeeded = Math.max(1, Math.ceil(participants.filter(p => p.claimed).length / 2));
+        const votedParticipants = destroyVotes.map(vid => participants.find(p => p.id === vid)).filter(Boolean);
+        const hasVoted = destroyVotes.includes(myIdentity);
+        return (
+          <div className="px-4 pt-3 pb-1 animate-slide-up">
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl px-5 py-3 shadow-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <svg className="w-5 h-5 text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                </svg>
+                <span className="text-sm font-bold text-amber-700 dark:text-amber-400">投票销毁聊天</span>
+                <span className="ml-auto text-xs font-bold text-amber-600 dark:text-amber-300">{destroyVotes.length}/{votesNeeded} 票</span>
+              </div>
+              <div className="w-full h-2 bg-amber-200 dark:bg-amber-800 rounded-full mb-2 overflow-hidden">
+                <div className="h-full bg-amber-500 rounded-full transition-all duration-500" style={{ width: `${Math.min(100, (destroyVotes.length / votesNeeded) * 100)}%` }} />
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5 flex-1 flex-wrap">
                   {votedParticipants.map((p, i) => (
                     <div key={i} className="flex items-center gap-1 text-xs" title={p!.id}>
-                      <img src={`https://api.dicebear.com/9.x/notionists/svg?seed=${encodeURIComponent(p!.id)}`} className="w-6 h-6 rounded-full ring-2 ring-amber-300 dark:ring-amber-600" alt="" />
+                      <img src={`https://api.dicebear.com/9.x/notionists/svg?seed=${encodeURIComponent(p!.id)}`} className="w-5 h-5 rounded-full ring-2 ring-amber-300 dark:ring-amber-600" alt="" />
                       <span className="text-[11px] font-medium text-amber-700 dark:text-amber-400">{p!.id.substring(0, 3)}</span>
                     </div>
                   ))}
                 </div>
-                {/* Action button */}
                 <button
                   onClick={handleVoteDestroyChat}
-                  className={`mt-3 w-full py-2 rounded-xl text-sm font-semibold transition-all ${
+                  className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                     hasVoted
                       ? "bg-amber-100 dark:bg-amber-800 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-700"
-                      : "bg-amber-500 text-white hover:bg-amber-600 shadow-md shadow-amber-200"
+                      : "bg-amber-500 text-white hover:bg-amber-600"
                   }`}
                 >
-                  {hasVoted ? "↩ 撤回投票" : "✅ 我也投一票销毁"}
+                  {hasVoted ? "↩ 撤回" : "✅ 投票"}
                 </button>
               </div>
             </div>
-          );
-        })()}
-        {/* Initiate vote button — always visible */}
-        {destroyVotes.length === 0 && (
-          <div className="flex justify-center">
-            <button
-              onClick={handleVoteDestroyChat}
-              className="px-4 py-1.5 text-xs font-medium text-amber-500 hover:text-white hover:bg-amber-500 border border-amber-300 dark:border-amber-700 rounded-full transition-all"
-            >
-              ⚡ 发起销毁投票
-            </button>
           </div>
-        )}
+        );
+      })()}
+      {destroyVotes.length === 0 && (
+        <div className="flex justify-center pt-3 pb-1">
+          <button
+            onClick={handleVoteDestroyChat}
+            className="px-4 py-1.5 text-xs font-medium text-amber-500 hover:text-white hover:bg-amber-500 border border-amber-300 dark:border-amber-700 rounded-full transition-all"
+          >
+            ⚡ 发起销毁投票
+          </button>
+        </div>
+      )}
+
+      {/* Messages */}
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {messages.length === 0 && destroyVotes.length === 0 && (
           <div className="flex items-center justify-center h-full">
             <p className="text-sm text-[rgb(var(--text-muted))]">发送第一条消息开始对话 · 可拖拽图片到此处上传</p>
@@ -597,6 +680,23 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
                       <path strokeLinecap="round" strokeLinejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" />
                     </svg>
                   </button>
+                  {/* Translate button — beside bubble, visible on hover */}
+                  {msg.content && decryptedContent[msg.timestamp] && (
+                    <button
+                      onClick={() => handleTranslate(msg.timestamp)}
+                      disabled={translatingMsg === msg.timestamp}
+                      className={`opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full shrink-0 mb-1 ${
+                        translations[msg.timestamp]
+                          ? "bg-[rgb(var(--accent))]/10 text-[rgb(var(--accent))]"
+                          : "text-[rgb(var(--text-muted))] hover:bg-[rgb(var(--accent))]/10 hover:text-[rgb(var(--accent))]"
+                      }`}
+                      title={`翻译为${targetLang === 'zh-CN' ? '中文' : targetLang}`}
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 21l5.25-11.25L21 21m-9-3h7.5M3 5.621a48.474 48.474 0 016-.371m0 0c1.12 0 2.233.038 3.334.114M9 5.25V3m3.334 2.364C11.176 10.658 7.69 15.08 3 17.502m9.334-12.138c.896.061 1.82.143 2.768.248m-2.768-.248A48.474 48.474 0 0015 5.621" />
+                      </svg>
+                    </button>
+                  )}
                   {/* Reply button — beside bubble, visible on hover */}
                   <button
                     onClick={() => setReplyTo(msg)}
@@ -622,6 +722,15 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
                 </div>
                 {isSelf && <img src={selfAvatarUrl} className="w-7 h-7 rounded-full shrink-0" alt="" />}
               </div>
+
+              {/* Translation display */}
+              {translations[msg.timestamp] && (
+                <div className={`${isSelf ? "text-right mr-9" : "ml-9"}`}>
+                  <div className="inline-block mt-1 px-3 py-1.5 rounded-xl bg-[rgb(var(--accent))]/5 dark:bg-[rgb(var(--accent))]/10 text-[11px] leading-relaxed text-[rgb(var(--text-secondary))] italic">
+                    {translations[msg.timestamp]}
+                  </div>
+                </div>
+              )}
 
               {/* Reactions — always visible */}
               <div className={`flex items-center gap-1 flex-wrap ${isSelf ? "justify-end mr-9" : "justify-start ml-9"}`}>
@@ -680,7 +789,9 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
           </div>
         )}
         <div className="flex items-center gap-2">
-          <input ref={messageInputRef} type="text" value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyDown={e => e.key === "Enter" && !isSending && handleSendMessage()} placeholder={replyTo ? "输入回复..." : "输入消息... 或拖拽图片到聊天区"} className="flex-1 px-4 py-2.5 text-sm bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-xl text-[rgb(var(--text-primary))] placeholder:text-[rgb(var(--text-muted))] focus:border-[rgb(var(--accent))] focus:ring-2 focus:ring-[rgb(var(--accent))]/10 outline-none transition-all" disabled={isSending} />
+          <div className="flex-1 rounded-xl border border-[rgb(var(--border))] bg-[rgb(var(--surface))] focus-within:border-[rgb(var(--accent))] focus-within:ring-2 focus-within:ring-[rgb(var(--accent))]/10 transition-all">
+            <textarea ref={messageInputRef} value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey && !isSending) { e.preventDefault(); handleSendMessage(); } }} placeholder={replyTo ? "输入回复..." : "输入消息... 或拖拽图片到聊天区"} className="w-full px-4 py-2.5 text-sm bg-transparent text-[rgb(var(--text-primary))] placeholder:text-[rgb(var(--text-muted))] outline-none resize-y min-h-[42px]" disabled={isSending} autoFocus rows={1} />
+          </div>
           <button onClick={() => setShowEmojiPicker(!showEmojiPicker)} className={`p-2.5 rounded-xl transition-all shrink-0 ${showEmojiPicker ? "bg-[rgb(var(--accent))] text-white" : "text-[rgb(var(--text-muted))] hover:text-[rgb(var(--text-primary))] hover:bg-[rgb(var(--surface-tertiary))]"}`} title="表情">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z" /></svg>
           </button>
