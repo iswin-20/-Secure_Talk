@@ -79,11 +79,11 @@ export async function getChatAccessData(chatId: string): Promise<{ accessPasswor
 }
 
 // 3. Get chat history
-export async function getChatHistory(chatId: string): Promise<{ messages?: EncryptedMessage[]; participants?: Participant[]; error?: string }> {
+export async function getChatHistory(chatId: string): Promise<{ messages?: EncryptedMessage[]; participants?: Participant[]; destroyVotes?: string[]; error?: string }> {
   try {
     const data: ChatData | null = await redis.get(`chat:${chatId}`);
     if (!data) return { error: 'Chat not found or expired.' };
-    return { messages: data.messages, participants: data.participants };
+    return { messages: data.messages, participants: data.participants, destroyVotes: data.destroyVotes };
   } catch (e) {
     console.error('Get chat history error:', e);
     return { error: 'Failed to fetch chat history.' };
@@ -137,7 +137,156 @@ export async function claimParticipant(
   }
 }
 
-// 7. Generate burn link for a participant
+// 7. Toggle reaction on a message
+export async function toggleReaction(
+  chatId: string,
+  messageTimestamp: number,
+  emoji: string,
+  participantId: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const data: ChatData | null = await redis.get(`chat:${chatId}`);
+    if (!data) return { success: false, error: 'Chat not found or expired.' };
+
+    const msg = data.messages.find(m => m.timestamp === messageTimestamp);
+    if (!msg) return { success: false, error: 'Message not found.' };
+
+    if (!msg.reactions) msg.reactions = {};
+    if (!msg.reactions[emoji]) msg.reactions[emoji] = [];
+
+    const idx = msg.reactions[emoji].indexOf(participantId);
+    if (idx >= 0) {
+      msg.reactions[emoji].splice(idx, 1);
+      if (msg.reactions[emoji].length === 0) delete msg.reactions[emoji];
+    } else {
+      msg.reactions[emoji].push(participantId);
+    }
+
+    await redis.set(`chat:${chatId}`, data, { ex: CHAT_EXPIRY });
+    return { success: true };
+  } catch (e) {
+    console.error('Toggle reaction error:', e);
+    return { success: false, error: 'Failed to toggle reaction.' };
+  }
+}
+
+// 8. Delete all messages sent by the current user (stay in chat)
+export async function deleteMyMessages(
+  chatId: string,
+  myIdentity: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const data: ChatData | null = await redis.get(`chat:${chatId}`);
+    if (!data) return { success: false, error: 'Chat not found or expired.' };
+
+    data.messages = data.messages.filter(m => m.sender !== myIdentity);
+
+    await redis.set(`chat:${chatId}`, data, { ex: CHAT_EXPIRY });
+    revalidatePath(`/chat/${chatId}`);
+
+    return { success: true };
+  } catch (e) {
+    console.error('Delete my messages error:', e);
+    return { success: false, error: 'Failed to delete messages.' };
+  }
+}
+
+// 8b. Leave chat: delete messages + remove from participants + clear vote
+export async function leaveChat(
+  chatId: string,
+  myIdentity: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const data: ChatData | null = await redis.get(`chat:${chatId}`);
+    if (!data) return { success: false, error: 'Chat not found or expired.' };
+
+    data.messages = data.messages.filter(m => m.sender !== myIdentity);
+    data.participants = data.participants.filter(p => p.id !== myIdentity);
+    // Remove their vote if they voted
+    if (data.destroyVotes) {
+      data.destroyVotes = data.destroyVotes.filter(v => v !== myIdentity);
+    }
+
+    await redis.set(`chat:${chatId}`, data, { ex: CHAT_EXPIRY });
+    revalidatePath(`/chat/${chatId}`);
+
+    return { success: true };
+  } catch (e) {
+    console.error('Leave chat error:', e);
+    return { success: false, error: 'Failed to leave chat.' };
+  }
+}
+
+// 9. Delete a single message
+export async function deleteSingleMessage(
+  chatId: string,
+  timestamp: number,
+  myIdentity: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const data: ChatData | null = await redis.get(`chat:${chatId}`);
+    if (!data) return { success: false, error: 'Chat not found or expired.' };
+
+    const before = data.messages.length;
+    data.messages = data.messages.filter(m => !(m.timestamp === timestamp && m.sender === myIdentity));
+
+    if (data.messages.length === before) {
+      return { success: false, error: '消息未找到或无权删除。' };
+    }
+
+    await redis.set(`chat:${chatId}`, data, { ex: CHAT_EXPIRY });
+    revalidatePath(`/chat/${chatId}`);
+
+    return { success: true };
+  } catch (e) {
+    console.error('Delete single message error:', e);
+    return { success: false, error: 'Failed to delete message.' };
+  }
+}
+
+// 10. Vote to destroy chat
+export async function voteDestroyChat(
+  chatId: string,
+  participantId: string,
+): Promise<{ success: boolean; destroyed?: boolean; votesNeeded?: number; currentVotes?: number; error?: string }> {
+  try {
+    const data: ChatData | null = await redis.get(`chat:${chatId}`);
+    if (!data) return { success: false, error: 'Chat not found or expired.' };
+
+    // Initialize destroyVotes if not present
+    if (!data.destroyVotes) data.destroyVotes = [];
+
+    const claimedCount = data.participants.filter(p => p.claimed).length;
+    const votesNeeded = Math.max(1, Math.ceil(claimedCount / 2));
+
+    // Toggle vote
+    const idx = data.destroyVotes.indexOf(participantId);
+    if (idx >= 0) {
+      data.destroyVotes.splice(idx, 1);
+    } else {
+      data.destroyVotes.push(participantId);
+    }
+
+    const currentVotes = data.destroyVotes.length;
+
+    // Check if threshold reached
+    if (currentVotes >= votesNeeded) {
+      await destroyChatRoom(chatId);
+      revalidatePath(`/chat/${chatId}`);
+      return { success: true, destroyed: true, votesNeeded, currentVotes };
+    }
+
+    await redis.set(`chat:${chatId}`, data, { ex: CHAT_EXPIRY });
+    revalidatePath(`/chat/${chatId}`);
+
+    return { success: true, destroyed: false, votesNeeded, currentVotes };
+  } catch (e) {
+    console.error('Vote destroy chat error:', e);
+    return { success: false, error: 'Failed to vote.' };
+  }
+}
+
+// 11. Generate burn link for a participant
 export async function generateBurnLinkForChat(
   adminPassword: string,
   messageForBurnLink: string,

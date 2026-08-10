@@ -14,7 +14,7 @@ export default function CreateChatClient() {
   const [accessPassword, setAccessPassword] = useState("");
   const [useAccessPassword, setUseAccessPassword] = useState(false);
   const [inactiveHours, setInactiveHours] = useState(72);
-  const [participantCount, setParticipantCount] = useState(2);
+  const [participantCount, setParticipantCount] = useState("2");
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
   const [useIpLocking, setUseIpLocking] = useState(false);
@@ -40,7 +40,7 @@ export default function CreateChatClient() {
         useAccessPassword ? accessPassword : undefined,
         inactiveHours,
         useIpLocking,
-        participantCount
+        parseInt(participantCount, 10) || 2
       );
 
       if (!createResult.success || !createResult.links) {
@@ -237,9 +237,11 @@ export default function CreateChatClient() {
                 type="number"
                 id="participantCount"
                 value={participantCount}
-                onChange={(e) => {
-                  const val = parseInt(e.target.value, 10) || 2;
-                  setParticipantCount(Math.max(2, Math.min(val, 15)));
+                onChange={(e) => setParticipantCount(e.target.value)}
+                onBlur={() => {
+                  const val = parseInt(participantCount, 10);
+                  if (isNaN(val) || val < 2) setParticipantCount("2");
+                  else if (val > 15) setParticipantCount("15");
                 }}
                 className="w-24 px-4 py-2.5 text-sm bg-[rgb(var(--surface-secondary))] border border-[rgb(var(--border))] rounded-xl text-[rgb(var(--text-primary))] focus:border-[rgb(var(--accent))] outline-none transition-all"
                 min={2}

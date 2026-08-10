@@ -21,8 +21,11 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Talk — Secure Chat",
+  title: "Secure Talk",
   description: "End-to-end encrypted chat. Messages that disappear.",
+  icons: {
+    icon: "/favicon.ico?v=2",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

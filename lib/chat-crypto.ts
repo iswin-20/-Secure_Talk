@@ -36,6 +36,27 @@ export async function generateKey(): Promise<string> {
 }
 
 /**
+ * Chunked base64 encode to avoid stack overflow on large buffers
+ */
+function uint8ToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.slice(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
+
+function base64ToUint8(base64: string): Uint8Array {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new Uint8Array(bytes.buffer);
+}
+
+/**
  * 使用给定的 Base64 密钥加密一条消息。
  * @param keyStr Base64 编码的密钥
  * @param data 要加密的字符串数据
@@ -52,8 +73,8 @@ export async function encryptMessage(keyStr: string, data: string): Promise<stri
     encodedData
   );
 
-  const ivB64 = btoa(String.fromCharCode(...iv));
-  const ciphertextB64 = btoa(String.fromCharCode(...new Uint8Array(ciphertext)));
+  const ivB64 = uint8ToBase64(iv);
+  const ciphertextB64 = uint8ToBase64(new Uint8Array(ciphertext));
   
   return `${ivB64}:${ciphertextB64}`;
 }
@@ -72,10 +93,15 @@ export async function decryptMessage(keyStr: string, encryptedData: string): Pro
     throw new Error('Invalid encrypted data format');
   }
 
-  const iv = new Uint8Array(atob(ivB64).split('').map(c => c.charCodeAt(0)));
-  const ciphertext = new Uint8Array(atob(ciphertextB64).split('').map(c => c.charCodeAt(0)));
+  const ivBytes = base64ToUint8(ivB64);
+  const ciphertextBytes = base64ToUint8(ciphertextB64);
 
-  const decrypted = await window.crypto.subtle.decrypt(
+  // Re-wrap as fresh Uint8Array to satisfy strict TS BufferSource typing
+  const iv = new Uint8Array(ivBytes);
+  const ciphertext = new Uint8Array(ciphertextBytes);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const decrypted = await (window.crypto.subtle as any).decrypt(
     { name: 'AES-GCM', iv },
     key,
     ciphertext

@@ -29,7 +29,10 @@ export interface EncryptedMessage {
   sender: string;
   timestamp: number;
   content?: string; // 这是加密后的消息内容
-  file?: FileMetadata; // <-- 新增, 加密后的文件元数据
+  file?: FileMetadata;
+  replyTo?: number; // 回复的消息 timestamp
+  reactions?: Record<string, string[]>; // emoji → participantIds[]
+  imageData?: string; // base64 图片数据（加密后）
 }
 
 export interface Participant {
@@ -45,4 +48,5 @@ export interface ChatData {
   inactiveHours: number;
   ipLockingEnabled?: boolean; // 是否启用 IP 锁定
   participants: Participant[];
+  destroyVotes?: string[]; // participant IDs who voted to destroy the chat
 }
