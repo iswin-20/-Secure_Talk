@@ -3,16 +3,17 @@
 @tailwind utilities;
 
 @layer base {
+  /* Stripe Elegance light theme (default) */
   :root {
     --surface: 255 255 255;
     --surface-secondary: 248 250 252;
     --surface-tertiary: 241 245 249;
-    --text-primary: 15 23 42;
-    --text-secondary: 71 85 105;
-    --text-muted: 148 163 184;
-    --border: 226 232 240;
+    --text-primary: 10 10 11;
+    --text-secondary: 107 107 123;
+    --text-muted: 156 163 175;
+    --border: 229 231 235;
     --accent: 79 70 229;
-    --accent-hover: 67 56 202;
+    --accent-hover: 99 102 241;
     --accent-light: 238 242 255;
     --danger: 239 68 68;
     --danger-hover: 220 38 38;
@@ -21,6 +22,17 @@
     --bg-secondary: 248 250 252;
     --chat-self: 79 70 229;
     --chat-other: 241 245 249;
+
+    /* Stripe Elegance specific tokens */
+    --brand-start: #1a1a2e;
+    --brand-mid: #4f46e5;
+    --brand-end: #a855f7;
+    --card-border: rgba(0, 0, 0, 0.05);
+    --card-shadow: 0px 1px 2px rgba(0, 0, 0, 0.02);
+    --card-shadow-hover: 0px 8px 30px rgba(0, 0, 0, 0.04), 0px 2px 6px rgba(0, 0, 0, 0.03);
+    --hero-gradient: linear-gradient(135deg, #1a1a2e 0%, #4f46e5 50%, #a855f7 100%);
+    --btn-gradient: linear-gradient(135deg, #4f46e5, #6366f1);
+    --create-bar-gradient: linear-gradient(135deg, #fafbff, #f5f3ff);
   }
 
   .dark {
@@ -45,14 +57,16 @@
 }
 
 body {
-  background: rgb(var(--bg-primary));
+  background: #fff;
   color: rgb(var(--text-primary));
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
 }
 
-/* Focus ring — precision, not aggression */
+/* Focus ring */
 *:focus-visible {
   outline: 2px solid rgb(var(--accent));
   outline-offset: 2px;
@@ -64,4 +78,135 @@ body {
   transition-property: color, background-color, border-color;
   transition-duration: 200ms;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ============ Stripe Elegance Components ============ */
+
+/* Gradient headline */
+.gradient-headline {
+  background: linear-gradient(135deg, #1a1a2e 0%, #4f46e5 50%, #a855f7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Card */
+.stripe-card {
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.02);
+  transition: all 0.25s;
+}
+.stripe-card:hover {
+  border-color: rgba(99, 102, 241, 0.15);
+  box-shadow: 0px 8px 30px rgba(0, 0, 0, 0.04), 0px 2px 6px rgba(0, 0, 0, 0.03);
+  transform: translateY(-2px);
+}
+
+/* Primary button */
+.btn-stripe-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 13px 24px;
+  font-size: 15px;
+  font-weight: 500;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: -0.15px;
+  background: linear-gradient(135deg, #4f46e5, #6366f1);
+  color: #fff;
+  box-shadow: 0px 2px 8px rgba(99, 102, 241, 0.25);
+  transition: all 0.2s;
+}
+.btn-stripe-primary:hover {
+  box-shadow: 0px 4px 16px rgba(99, 102, 241, 0.35);
+  transform: translateY(-1px);
+}
+
+/* Secondary/ghost button */
+.btn-stripe-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 400;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  background: transparent;
+  color: #6b6b7b;
+  transition: all 0.2s;
+}
+.btn-stripe-ghost:hover {
+  color: #0a0a0b;
+  background: #f9fafb;
+}
+
+/* Auth form inputs */
+.stripe-input {
+  width: 100%;
+  padding: 13px 16px;
+  font-size: 16px;
+  font-weight: 400;
+  font-family: inherit;
+  color: #0a0a0b;
+  background: #fff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  outline: none;
+}
+.stripe-input:focus {
+  border-color: #6366f1;
+  box-shadow: 0px 0px 0px 4px rgba(99, 102, 241, 0.08);
+}
+.stripe-input::placeholder {
+  color: #d1d5db;
+  font-weight: 300;
+}
+
+/* Create room bar */
+.stripe-create-bar {
+  background: linear-gradient(135deg, #fafbff, #f5f3ff);
+  border-radius: 16px;
+  padding: 20px 28px;
+  border: 1px solid rgba(99, 102, 241, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Nav */
+.stripe-nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+/* Room badge */
+.room-badge-public {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  background: #ecfdf5;
+  color: #059669;
+}
+.room-badge-private {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 9999px;
+  background: #fef3c7;
+  color: #d97706;
 }

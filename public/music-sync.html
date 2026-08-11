@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>一起听 · Mineradio</title>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#fff; --surface:#fafafa; --border:rgba(0,0,0,0.08); --text:#171717;
+  --text-secondary:#4d4d4d; --text-muted:#999; --accent:#6366f1;
+  --qq:#1ec997; --netease:#ec4141; --radius:8px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Geist',-apple-system,sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+
+/* ===== HEADER ===== */
+.header{display:flex;align-items:center;gap:10px;padding:10px 20px;border-bottom:1px solid var(--border);background:rgba(255,255,255,0.95);backdrop-filter:blur(12px);flex-shrink:0;z-index:10}
+.header .brand{font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px;white-space:nowrap;letter-spacing:-0.3px}
+.header .badge{background:var(--accent);color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500}
+.header .url-box{flex:1;display:flex;border-radius:var(--radius);box-shadow:0 0 0 1px rgba(0,0,0,0.08);transition:box-shadow .15s}
+.header .url-box:focus-within{box-shadow:0 0 0 2px var(--accent)}
+.header .url-box input{flex:1;padding:8px 12px;border:none;background:var(--surface);font-size:13px;font-family:inherit;color:var(--text);outline:none;border-radius:var(--radius) 0 0 var(--radius)}
+.header .url-box input::placeholder{color:var(--text-muted)}
+.header .url-box button{padding:8px 16px;background:var(--text);color:#fff;border:none;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;border-radius:0 var(--radius) var(--radius) 0;letter-spacing:-0.2px}
+.header .url-box button:hover{opacity:.9}
+.header .status{font-size:11px;color:var(--text-secondary);display:flex;align-items:center;gap:5px;white-space:nowrap}
+.header .dot{width:6px;height:6px;border-radius:50%;background:#22c55e;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ===== SOURCE TABS ===== */
+.source-tabs{display:flex;gap:4px;padding:10px 20px 0;flex-shrink:0}
+.source-tab{padding:6px 14px;font-size:12px;font-weight:500;border-radius:var(--radius) var(--radius) 0 0;cursor:pointer;border:none;background:none;color:var(--text-muted);font-family:inherit;transition:all .15s;letter-spacing:-0.2px}
+.source-tab:hover{color:var(--text);background:var(--surface)}
+.source-tab.active{color:var(--text);background:var(--surface);box-shadow:0 -1px 0 var(--border),1px 0 0 var(--border),-1px 0 0 var(--border)}
+.source-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.source-dot.netease{background:var(--netease)}
+.source-dot.qq{background:var(--qq)}
+
+/* ===== ARTIST FILTER ===== */
+.artist-filter{display:none;gap:6px;padding:8px 20px;flex-shrink:0;overflow-x:auto;scrollbar-width:none}
+.artist-filter::-webkit-scrollbar{display:none}
+.artist-filter.visible{display:flex}
+.artist-pill{padding:4px 12px;font-size:11px;font-weight:500;border-radius:12px;cursor:pointer;border:1px solid var(--border);background:var(--bg);color:var(--text-secondary);white-space:nowrap;transition:all .15s;font-family:inherit;letter-spacing:-0.2px}
+.artist-pill:hover{border-color:var(--accent);color:var(--accent)}
+.artist-pill.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.artist-pill .count{font-size:9px;opacity:.6;margin-left:4px}
+
+/* ===== MAIN ===== */
+.main{flex:1;display:flex;min-height:0;overflow:hidden}
+
+/* ===== SEARCH RESULTS ===== */
+.search-results{flex:1;overflow-y:auto;padding:8px 12px 12px;scroll-behavior:smooth}
+.search-results::-webkit-scrollbar{width:6px}
+.search-results::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.1);border-radius:3px}
+.search-results::-webkit-scrollbar-thumb:hover{background:rgba(0,0,0,0.18)}
+
+/* Song card */
+.song-card{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:var(--radius);cursor:pointer;transition:all .12s;margin-bottom:2px;position:relative}
+.song-card:hover{background:var(--surface)}
+.song-card.playing{background:#f4f0ff;box-shadow:inset 0 0 0 1px rgba(99,102,241,0.15)}
+.song-card .cover-wrap{position:relative;flex-shrink:0;width:42px;height:42px}
+.song-card .cover{width:42px;height:42px;border-radius:6px;object-fit:cover;box-shadow:0 1px 3px rgba(0,0,0,0.08);background:var(--surface)}
+.song-card .cover-placeholder{width:42px;height:42px;border-radius:6px;background:linear-gradient(135deg,#e0e7ff,#ddd6fe);display:flex;align-items:center;justify-content:center;font-size:17px}
+.song-card .info{flex:1;min-width:0}
+.song-card .info .name{font-size:13px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-0.2px;line-height:1.3}
+.song-card .info .meta{display:flex;align-items:center;gap:6px;margin-top:3px}
+.song-card .info .artist{font-size:11px;color:var(--text-muted)}
+.song-card .info .album{font-size:10px;color:var(--text-muted);opacity:.7}
+.song-card .right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.song-card .source-badge{padding:1px 7px;border-radius:10px;font-size:9px;font-weight:600;letter-spacing:0.3px;text-transform:uppercase}
+.song-card .source-badge.netease{background:rgba(236,65,65,0.08);color:var(--netease)}
+.song-card .source-badge.qq{background:rgba(30,201,151,0.08);color:var(--qq)}
+.song-card .duration{font-size:11px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;min-width:38px;text-align:right}
+.song-card .queue-btn{width:24px;height:24px;border-radius:50%;border:none;background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:12px;transition:all .15s;opacity:0}
+.song-card:hover .queue-btn{opacity:1}
+.song-card .queue-btn:hover{background:var(--accent);color:#fff}
+.loading-state{display:flex;align-items:center;justify-content:center;padding:32px;gap:10px;color:var(--text-muted);font-size:13px}
+.spinner{width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Empty */
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;height:100%;padding:20px}
+.empty-state .icon{width:52px;height:52px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 1px rgba(0,0,0,0.06)}
+.empty-state .icon svg{width:24px;height:24px;color:var(--text-muted)}
+.empty-state h3{font-size:15px;font-weight:500;color:var(--text);letter-spacing:-0.3px}
+.empty-state p{font-size:12px;color:var(--text-muted);text-align:center;max-width:300px;line-height:1.5}
+
+/* ===== LYRICS PANEL ===== */
+.lyrics-panel{display:none;width:280px;border-left:1px solid var(--border);overflow:hidden;flex-shrink:0;background:var(--surface);flex-direction:column}
+.lyrics-panel.visible{display:flex}
+.lyrics-header{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border);flex-shrink:0}
+.lyrics-header span{font-size:12px;font-weight:500;letter-spacing:-0.2px}
+.lyrics-body{flex:1;overflow-y:auto;padding:16px 14px 60px;scroll-behavior:smooth}
+.lyrics-body::-webkit-scrollbar{width:4px}
+.lyrics-body::-webkit-scrollbar-thumb{background:rgba(0,0,0,0.08);border-radius:2px}
+.lyric-line{padding:3px 6px;border-radius:4px;font-size:12px;line-height:2;color:var(--text-muted);transition:all .3s;cursor:default;letter-spacing:-0.1px}
+.lyric-line.active{color:var(--text);font-weight:500;font-size:13px;background:rgba(99,102,241,0.04)}
+.lyric-empty{display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:12px}
+
+/* ===== NOW PLAYING ===== */
+.now-playing{display:none;align-items:center;gap:12px;padding:8px 20px;border-top:1px solid var(--border);background:rgba(255,255,255,0.95);backdrop-filter:blur(12px);flex-shrink:0}
+.now-playing.visible{display:flex}
+.now-playing .np-cover{width:40px;height:40px;border-radius:6px;object-fit:cover;box-shadow:0 1px 3px rgba(0,0,0,0.08);flex-shrink:0}
+.now-playing .np-info{flex:1;min-width:0;max-width:160px}
+.now-playing .np-name{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:-0.2px}
+.now-playing .np-artist{font-size:11px;color:var(--text-muted);margin-top:1px}
+.now-playing .np-center{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;max-width:400px}
+.now-playing .np-controls{display:flex;align-items:center;gap:16px}
+.now-playing .np-controls button{width:28px;height:28px;border-radius:50%;border:none;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text);transition:all .15s}
+.now-playing .np-controls button:hover{color:var(--accent)}
+.now-playing .np-controls button:disabled{opacity:.3;cursor:default}
+.now-playing .np-controls .play-btn{width:36px;height:36px;background:var(--text);color:#fff;border-radius:50%}
+.now-playing .np-controls .play-btn:hover{background:var(--accent);color:#fff}
+.now-playing .np-controls svg{width:16px;height:16px}
+.now-playing .np-progress-row{display:flex;align-items:center;gap:8px;width:100%}
+.now-playing .np-time{font-size:10px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;min-width:33px}
+.now-playing .progress{flex:1;height:4px;background:var(--border);border-radius:2px;cursor:pointer;position:relative}
+.now-playing .progress .fill{height:100%;background:var(--accent);border-radius:2px;width:0%;transition:width .5s linear;position:relative}
+.now-playing .progress .thumb{position:absolute;right:-6px;top:-4px;width:12px;height:12px;border-radius:50%;background:var(--accent);opacity:0;transition:opacity .15s;box-shadow:0 1px 3px rgba(99,102,241,0.3)}
+.now-playing .progress:hover .thumb{opacity:1}
+.now-playing .np-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+/* Queue badge */
+.queue-badge{font-size:10px;color:var(--text-muted);cursor:pointer;padding:3px 8px;border-radius:10px;background:var(--surface);box-shadow:0 0 0 1px var(--border);transition:all .15s;white-space:nowrap}
+.queue-badge:hover{color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+/* Lyrics & volume btns */
+.now-playing .extra-btns{display:flex;align-items:center;gap:2px}
+.now-playing .extra-btn{width:28px;height:28px;border:none;background:none;cursor:pointer;border-radius:50%;display:flex;align-items:center;justify-content:center;color:var(--text-muted);transition:all .15s;font-size:11px}
+.now-playing .extra-btn:hover{color:var(--accent);background:var(--surface)}
+.now-playing .extra-btn.on{color:var(--accent)}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="brand">🎵 一起听<span class="badge">SYNC</span></div>
+  <div class="url-box">
+    <input type="text" id="searchInput" placeholder="搜索歌曲…" onkeydown="if(event.key==='Enter')doSearch()">
+    <button onclick="doSearch()">搜索</button>
+  </div>
+  <div class="status"><span class="dot" id="dot"></span><span id="statusText">已连接</span><span id="memberInfo" style="margin-left:4px"></span></div>
+</div>
+
+<!-- SOURCE TABS -->
+<div class="source-tabs">
+  <button class="source-tab active" onclick="switchSource('all')"><span class="source-dot" style="background:linear-gradient(135deg,var(--netease),var(--qq))"></span>全部</button>
+  <button class="source-tab" onclick="switchSource('netease')"><span class="source-dot netease"></span>网易云</button>
+  <button class="source-tab" onclick="switchSource('qq')"><span class="source-dot qq"></span>QQ音乐</button>
+</div>
+
+<!-- ARTIST FILTER -->
+<div class="artist-filter" id="artistFilter"></div>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="search-results" id="results">
+    <div class="empty-state" id="emptyState">
+      <div class="icon"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m9 9 10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66a2.25 2.25 0 0 0 1.632-2.163Zm0 0V2.25L9 5.25v10.303m0 0v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 0 1-.99-3.467l2.31-.66A2.25 2.25 0 0 0 9 15.553Z"/></svg></div>
+      <h3>搜索音乐，一起收听</h3>
+      <p>搜索网易云 + QQ音乐曲库，点击即可播放 · 房间内实时同步</p>
+    </div>
+  </div>
+  <div class="lyrics-panel" id="lyricsPanel">
+    <div class="lyrics-header"><span>🎤 歌词</span><button style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:16px;line-height:1" onclick="toggleLyrics()">×</button></div>
+    <div class="lyrics-body" id="lyricsBody"><div class="lyric-empty">暂无歌词</div></div>
+  </div>
+</div>
+
+<!-- NOW PLAYING BAR -->
+<div class="now-playing" id="nowPlaying">
+  <img class="np-cover" id="npCover" src="" alt="" onerror="this.style.display='none';document.getElementById('npPlaceholder').style.display='flex'">
+  <div id="npPlaceholder" style="display:none;width:40px;height:40px;border-radius:6px;background:linear-gradient(135deg,#e0e7ff,#ddd6fe);align-items:center;justify-content:center;flex-shrink:0">🎵</div>
+  <div class="np-info">
+    <div class="np-name" id="npName">未在播放</div>
+    <div class="np-artist" id="npArtist"></div>
+  </div>
+  <div class="np-center">
+    <div class="np-controls">
+      <button id="prevBtn" onclick="playPrev()" title="上一首" disabled><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg></button>
+      <button class="play-btn" id="playBtn" onclick="togglePlay()" title="播放/暂停">
+        <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+      <button id="nextBtn" onclick="playNext()" title="下一首" disabled><svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zm10-12v12h2V6z"/></svg></button>
+    </div>
+    <div class="np-progress-row">
+      <span class="np-time" id="npCur">0:00</span>
+      <div class="progress" id="progressBar" onclick="seek(event)">
+        <div class="fill" id="progressFill"><div class="thumb"></div></div>
+      </div>
+      <span class="np-time" id="npDur">0:00</span>
+    </div>
+  </div>
+  <div class="np-right">
+    <span class="queue-badge" id="queueBadge" onclick="scrollToCurrent()">队列 0</span>
+    <div class="extra-btns">
+      <button class="extra-btn" id="lyricsBtn" onclick="toggleLyrics()" title="歌词">🎤</button>
+    </div>
+  </div>
+</div>
+
+<audio id="audio" preload="auto" crossorigin="anonymous"></audio>
+
+<script>
+(function(){
+  var p=new URLSearchParams(location.search);
+  var ROOM=p.get('room')||'default';
+  var uid='u'+Math.random().toString(36).substr(2,6);
+  var ws,audio=document.getElementById('audio'),isHost=false,memberCount=0;
+  var queue=[],currentIdx=-1,lyrics=[],lyricsVisible=false,currentSource='all',selectedArtist='';
+  var allSongs=[],neteaseSongs=[],qqSongs=[];
+
+  // ========== WEBSOCKET ==========
+  var _lastJoinFailed=false;
+  function connect(){
+    var proto=location.protocol==='https:'?'wss:':'ws:';
+    ws=new WebSocket(proto+'//'+location.host+'/ws?language=zh-CN');
+    ws.onopen=function(){setStatus(true);
+      ws.send(JSON.stringify({method:'/room/join',data:{name:ROOM,password:''}}));};
+    ws.onmessage=function(e){
+      var m=JSON.parse(e.data);
+      if(m.method==='/room/join'){
+        if(m.errorMessage){_lastJoinFailed=true;return}
+        _lastJoinFailed=false;
+        updateMembers(m.data.memberCount);
+        // Parse url for initial state
+        if(m.data.url)handleMusicUrl(m.data.url);
+      }else if(m.method==='/room/update'){
+        updateMembers(m.data.memberCount);
+        if(m.data.url)handleMusicUrl(m.data.url);
+      }
+    };
+    ws.onclose=function(){setStatus(false);setTimeout(connect,3000)};};
+
+  var _lastBroadcast=0;
+  function broadcast(action,extra){
+    if(!ws||ws.readyState!==1)return;
+    var now=Date.now();
+    if(now-_lastBroadcast<300)return;
+    _lastBroadcast=now;
+    var cur=queue[currentIdx]||{};
+    // First ensure room exists by sending a join (may fail, that's OK)
+    if(_lastJoinFailed){ws.send(JSON.stringify({method:'/room/join',data:{name:ROOM,password:''}}));_lastJoinFailed=false}
+    // Encode music state in url field since Go server only passes url
+    var musicUrl='music://sync?';
+    var params=[];
+    if(action)params.push('a='+encodeURIComponent(action));
+    if(cur.uid){params.push('uid='+encodeURIComponent(cur.uid));params.push('n='+encodeURIComponent(cur.name||''));params.push('ar='+encodeURIComponent(cur.artist||''));params.push('cv='+encodeURIComponent(cur.cover||''));params.push('pv='+encodeURIComponent(cur.provider||''))}
+    params.push('t='+Math.floor(audio.currentTime*10)/10);
+    params.push('d='+Math.floor((audio.duration||0)*10)/10);
+    params.push('p='+(audio.paused?1:0));
+    musicUrl+=params.join('&');
+    ws.send(JSON.stringify({method:'/room/update',data:{name:ROOM,password:'',sendLocalTimestamp:Date.now()/1000,tempUser:uid,public:true,url:musicUrl}}));
+  }
+
+  function handleMusicUrl(url){
+    if(!url||url.indexOf('music://sync?')!==0)return;
+    var p=new URLSearchParams(url.split('?')[1]);
+    var action=p.get('a'),t=parseFloat(p.get('t')||'0'),uid_r=p.get('uid'),isPaused=p.get('p')==='1';
+    // New song?
+    if(uid_r&&(!queue.length||queue[currentIdx]?.uid!==uid_r)){
+      var s={uid:uid_r,name:p.get('n')||'',artist:p.get('ar')||'',cover:p.get('cv')||'',provider:p.get('pv')||'',duration:parseFloat(p.get('d')||'0'),audioUrl:'',mid:''};
+      queue.push(s);if(queue.length===1){currentIdx=0;playCurrent()}updateQueueBadge();
+    }
+    // Sync playback
+    if(action==='pause'||isPaused){audio.pause()}
+    else if(action==='play'){audio.play().catch(function(){})}
+    if(t>0&&Math.abs(audio.currentTime-t)>3&&action!=='play_song'){audio.currentTime=t}
+  }
+
+  // ========== AUDIO ==========
+  audio.onplay=function(){updatePlayBtn();broadcast('play');};
+  audio.onpause=function(){updatePlayBtn();broadcast('pause');};
+  audio.ontimeupdate=function(){updateProgress();highlightLyric();};
+  audio.onended=function(){playNext();};
+
+  // ========== SEARCH ==========
+  window.doSearch=function(){
+    var q=document.getElementById('searchInput').value.trim();
+    if(!q)return;
+    var el=document.getElementById('results');
+    el.innerHTML='<div class="loading-state"><div class="spinner"></div>搜索中…</div>';
+    var emptyEl=document.getElementById('emptyState');if(emptyEl)emptyEl.style.display='none';
+    var encQ=encodeURIComponent(q);
+    neteaseSongs=[];qqSongs=[];allSongs=[];selectedArtist='';
+    var needNE=currentSource==='all'||currentSource==='netease';
+    var needQQ=currentSource==='all'||currentSource==='qq';
+    if(needNE){
+      fetch('https://music.vidaxl.space/api/search?keywords='+encQ).then(function(r){return r.json()}).then(function(d){
+        neteaseSongs=(d.songs||[]).map(function(s){s.provider='netease';s.sourceName='网易云';s.uid='netease-'+s.id;s.artist=s.artist||'';return s});
+        mergeAndShow();
+      }).catch(function(){mergeAndShow()});
+    }
+    if(needQQ){
+      fetch('https://music.vidaxl.space/api/qq/search?keywords='+encQ).then(function(r){return r.json()}).then(function(d){
+        qqSongs=(d.songs||[]).map(function(s){
+          return {provider:'qq',sourceName:'QQ音乐',uid:'qq-'+s.mid,mid:s.mid||'',name:s.name||'',artist:s.artist||'',album:s.album||'',cover:s.cover||'',duration:s.duration||0,mediaMid:s.mediaMid||''};
+        });
+        mergeAndShow();
+      }).catch(function(){mergeAndShow()});
+    }
+    if(!needNE&&!needQQ)mergeAndShow();
+  };
+
+  var _mergePending=0;
+  function mergeAndShow(){
+    allSongs=neteaseSongs.concat(qqSongs);
+    if(!allSongs.length&&!_mergePending){_mergePending=setTimeout(function(){_mergePending=0;if(!allSongs.length)document.getElementById('results').innerHTML='<div class="loading-state">无结果</div>'},5000);return}
+    if(_mergePending){clearTimeout(_mergePending);_mergePending=0}
+    buildArtistFilter(allSongs);
+    applyFilter();
+  }
+
+  window.switchSource=function(src){
+    currentSource=src;
+    document.querySelectorAll('.source-tab').forEach(function(t){t.classList.remove('active')});
+    document.querySelector('.source-tab[onclick*="'+src+'"]').classList.add('active');
+    var q=document.getElementById('searchInput').value.trim();
+    if(q)doSearch();else applyFilter();
+  };
+
+  function buildArtistFilter(songs){
+    var map={};
+    songs.forEach(function(s){
+      var artists=(s.artist||'').split(/[\/,]/);
+      artists.forEach(function(a){a=a.trim();if(a){map[a]=(map[a]||0)+1}});
+    });
+    var arr=Object.keys(map).map(function(k){return{name:k,count:map[k]}});
+    arr.sort(function(a,b){return b.count-a.count||a.name.localeCompare(b.name,'zh')});
+    var el=document.getElementById('artistFilter');
+    if(arr.length<2){el.classList.remove('visible');return}
+    el.classList.add('visible');
+    var html='<button class="artist-pill active" onclick="filterArtist(\x27\x27)">全部<span class="count">'+songs.length+'</span></button>';
+    arr.forEach(function(a){
+      var nameEnc=a.name.replace(/'/g,"\\'");
+      html+='<button class="artist-pill" onclick="filterArtist(\x27'+nameEnc+'\x27)">'+escapeHtml(a.name)+'<span class="count">'+a.count+'</span></button>';
+    });
+    el.innerHTML=html;
+  }
+
+  window.filterArtist=function(name){
+    selectedArtist=name;
+    document.querySelectorAll('.artist-pill').forEach(function(p){
+      var text=p.textContent.trim();
+      var isActive=name===''?text.indexOf('全部')===0:text.indexOf(name)>=0;
+      p.classList.toggle('active',isActive);
+    });
+    applyFilter();
+  };
+
+  function applyFilter(){
+    var songs=currentSource==='netease'?neteaseSongs:currentSource==='qq'?qqSongs:allSongs;
+    if(selectedArtist){
+      songs=songs.filter(function(s){return s.artist.indexOf(selectedArtist)>=0;});
+    }
+    renderResults(songs);
+  }
+
+  function fmtTime(s){
+    if(!s||isNaN(s))return'0:00';
+    var m=Math.floor(s/60),sec=Math.floor(s%60);
+    return m+':'+(sec<10?'0':'')+sec;
+  }
+
+  function escapeHtml(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+  function renderResults(songs){
+    var el=document.getElementById('results');
+    if(!songs.length){el.innerHTML='';return}
+    var curUid=queue[currentIdx]?queue[currentIdx].uid:null;
+    el.innerHTML=songs.map(function(s){
+      var isCur=curUid===s.uid;
+      var dur=s.duration?s.duration:0;
+      var isQQ=s.provider==='qq';
+      var isNE=s.provider==='netease';
+      return '<div class="song-card'+(isCur?' playing':'')+'" data-uid="'+escapeHtml(s.uid)+'" onclick="addToQueueAndPlay(this)" title="点击播放">'+
+        '<div class="cover-wrap">'+
+          (s.cover?'<img class="cover" src="'+escapeHtml(s.cover.replace(/^http:/,'https:'))+'" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">'+
+          '<div class="cover-placeholder" style="display:none">🎵</div>':'<div class="cover-placeholder">🎵</div>')+
+        '</div>'+
+        '<div class="info">'+
+          '<div class="name">'+escapeHtml(s.name)+'</div>'+
+          '<div class="meta"><span class="artist">'+escapeHtml(s.artist)+'</span>'+(s.album?'<span class="album">'+escapeHtml(s.album)+'</span>':'')+'</div>'+
+        '</div>'+
+        '<div class="right">'+
+          '<span class="source-badge '+(isQQ?'qq':'netease')+'">'+(isQQ?'QQ':'NE')+'</span>'+
+          '<span class="duration">'+(dur?fmtTime(dur):'--:--')+'</span>'+
+          '<button class="queue-btn" onclick="event.stopPropagation();addToQueue(this)" title="加入队列">+</button>'+
+        '</div>'+
+        '</div>';
+    }).join('');
+    window._currentResults=songs;
+  }
+
+  // ========== QUEUE & PLAYBACK ==========
+  function makeSongObj(s){
+    return {
+      uid:s.uid,name:s.name,artist:s.artist,album:s.album||'',
+      cover:(s.cover||'').replace(/^http:/,'https:'),
+      duration:s.duration||0,provider:s.provider,source:s.source||s.provider,
+      // For Netease
+      audioUrl:s.audioUrl||'',lrcUrl:s.lrcUrl||'',
+      // For QQ
+      mid:s.mid||s.songmid||''
+    };
+  }
+
+  window.addToQueue=function(el){
+    var uid=el.closest('.song-card').dataset.uid;
+    var s=(window._currentResults||[]).find(function(x){return x.uid===uid});
+    if(!s)return;
+    var obj=makeSongObj(s);
+    queue.push(obj);
+    updateQueueBadge();
+    if(currentIdx<0){currentIdx=0;playCurrent()}
+  };
+
+  window.addToQueueAndPlay=function(el){
+    var uid=el.dataset.uid;
+    var s=(window._currentResults||[]).find(function(x){return x.uid===uid});
+    if(!s)return;
+    var obj=makeSongObj(s);
+    // If already in queue, jump to it
+    var existing=queue.findIndex(function(x){return x.uid===uid});
+    if(existing>=0){currentIdx=existing;playCurrent();return;}
+    // Insert after current
+    queue.splice(currentIdx+1,0,obj);
+    currentIdx++;
+    updateQueueBadge();
+    playCurrent();
+    broadcast('play_song');
+  };
+
+  function updateQueueBadge(){
+    document.getElementById('queueBadge').textContent='队列 '+(queue.length||0);
+  }
+
+  function playCurrent(){
+    if(currentIdx<0||currentIdx>=queue.length)return;
+    var s=queue[currentIdx];
+    // UI
+    document.getElementById('nowPlaying').classList.add('visible');
+    document.getElementById('npName').textContent=s.name||'';
+    document.getElementById('npArtist').textContent=s.artist||'';
+    var cov=s.cover;
+    if(cov){
+      document.getElementById('npCover').style.display='';
+      document.getElementById('npCover').src=cov;
+      document.getElementById('npPlaceholder').style.display='none';
+    }else{
+      document.getElementById('npCover').style.display='none';
+      document.getElementById('npPlaceholder').style.display='flex';
+    }
+    // Highlight
+    highlightCurrentCard();
+    updateQueueBadge();
+    updateNavButtons();
+    // Auto-show lyrics
+    if(!lyricsVisible)toggleLyrics();
+    // Fetch lyrics
+    lyrics=[];
+    document.getElementById('lyricsBody').innerHTML='<div class="lyric-empty">加载歌词…</div>';
+    fetchLyrics(s);
+    // Fetch & play audio
+    fetchAndPlay(s);
+  }
+
+  function fetchLyrics(s){
+    if(s.provider==='netease'){
+      var neId=extractNeteaseId(s.uid);
+      if(neId){
+        fetch('https://music.vidaxl.space/api/lyric?id='+neId).then(function(r){return r.json()}).then(function(d){
+          if(d.lyric){parseLyric(d.lyric);renderLyrics()}
+          else{document.getElementById('lyricsBody').innerHTML='<div class="lyric-empty">暂无歌词</div>'}
+        }).catch(function(){document.getElementById('lyricsBody').innerHTML='<div class="lyric-empty">暂无歌词</div>'});
+      }
+    }else if(s.provider==='qq'){
+      // Use V3's lyric endpoint
+      var mid=s.mid||extractQQMid(s.uid);
+      if(mid){
+        fetch('https://music.vidaxl.space/api/qq/lyric?mid='+mid).then(function(r){return r.json()}).then(function(d){
+          if(d.lyric){parseLyric(d.lyric);renderLyrics()}
+          else{document.getElementById('lyricsBody').innerHTML='<div class="lyric-empty">暂无歌词</div>'}
+        }).catch(function(){document.getElementById('lyricsBody').innerHTML='<div class="lyric-empty">暂无歌词</div>'});
+      }
+    }
+  }
+
+  function fetchAndPlay(s){
+    if(s.provider==='netease'){
+      if(s.audioUrl){playAudioUrl(s.audioUrl);return}
+      var neId=extractNeteaseId(s.uid);
+      if(neId){
+        fetch('https://music.vidaxl.space/api/song/url?id='+neId).then(function(r){return r.json()}).then(function(d){
+          if(d.url)playAudioUrl(d.url);
+        }).catch(function(){});
+      }
+    }else if(s.provider==='qq'){
+      var mid=s.mid||extractQQMid(s.uid);
+      if(mid){
+        fetch('https://music.vidaxl.space/api/qq/song/url?mid='+mid+'&skipProbe=1&quality=128k').then(function(r){return r.json()}).then(function(d){
+          if(d.url)playAudioUrl(d.url);
+        }).catch(function(){});
+      }
+    }
+  }
+
+  function playAudioUrl(url){
+    if(!url)return;
+    url=url.replace(/^http:/,'https:');
+    audio.src=url;
+    audio.load();
+    audio.play().catch(function(){});
+    broadcast('play_song');
+  }
+
+  function extractNeteaseId(uid){
+    var m=uid.match(/^netease-(\d+)/);
+    return m?m[1]:null;
+  }
+  function extractQQMid(uid){
+    var m=uid.match(/^qq-(.+)/);
+    return m?m[1]:null;
+  }
+
+  function playNext(){
+    if(currentIdx<queue.length-1){currentIdx++;playCurrent();broadcast('next')}
+  }
+  function playPrev(){
+    if(currentIdx>0){currentIdx--;playCurrent();broadcast('prev')}
+  }
+
+  window.playNext=playNext;window.playPrev=playPrev;
+
+  function highlightCurrentCard(){
+    var curUid=queue[currentIdx]?queue[currentIdx].uid:null;
+    document.querySelectorAll('.song-card').forEach(function(c){
+      c.classList.toggle('playing',c.dataset.uid===curUid);
+    });
+  }
+
+  function updateQueueBadge(){
+    document.getElementById('queueBadge').textContent='队列 '+(queue.length||0);
+  }
+
+  function updateNavButtons(){
+    document.getElementById('prevBtn').disabled=currentIdx<=0;
+    document.getElementById('nextBtn').disabled=currentIdx>=queue.length-1;
+  }
+
+  window.scrollToCurrent=function(){
+    var curUid=queue[currentIdx]?queue[currentIdx].uid:null;
+    if(!curUid)return;
+    var el=document.querySelector('.song-card[data-uid="'+curUid+'"]');
+    if(el)el.scrollIntoView({behavior:'smooth',block:'center'});
+  };
+
+  // ========== LYRICS ==========
+  function parseLyric(raw){
+    lyrics=[];
+    // Try JSON format first (netease enhanced)
+    try{
+      var enhanced=JSON.parse(raw);
+      if(enhanced.lrc&&enhanced.lrc.lyric){
+        raw=enhanced.lrc.lyric;
+      }
+    }catch(e){}
+    var lines=raw.split('\n');
+    lines.forEach(function(line){
+      var m=line.match(/^\[(\d+):(\d+(?:\.\d+)?)\](.*)/);
+      if(m){
+        var t=parseInt(m[1])*60+parseFloat(m[2]);
+        var txt=m[3].trim();
+        if(txt)lyrics.push({time:t,text:txt});
+      }
+    });
+  }
+
+  function renderLyrics(){
+    var el=document.getElementById('lyricsBody');
+    if(!lyrics.length){el.innerHTML='<div class="lyric-empty">暂无歌词</div>';return}
+    el.innerHTML=lyrics.map(function(l){return '<div class="lyric-line" data-time="'+l.time+'">'+escapeHtml(l.text)+'</div>'}).join('');
+    // If audio already playing, highlight immediately
+    highlightLyric();
+  }
+
+  function highlightLyric(){
+    if(!lyrics.length||!lyricsVisible)return;
+    var t=audio.currentTime,activeIdx=-1;
+    for(var i=0;i<lyrics.length;i++){if(lyrics[i].time<=t)activeIdx=i;else break}
+    var lines=document.querySelectorAll('.lyric-line');
+    lines.forEach(function(l){l.classList.remove('active')});
+    if(activeIdx>=0&&lines[activeIdx]){
+      lines[activeIdx].classList.add('active');
+      lines[activeIdx].scrollIntoView({block:'center',behavior:'smooth'});
+    }
+  }
+
+  window.toggleLyrics=function(){
+    lyricsVisible=!lyricsVisible;
+    var panel=document.getElementById('lyricsPanel');
+    var btn=document.getElementById('lyricsBtn');
+    if(lyricsVisible){panel.classList.add('visible');btn.classList.add('on');highlightLyric()}
+    else{panel.classList.remove('visible');btn.classList.remove('on')}
+  };
+
+  // ========== PLAYBACK CONTROLS ==========
+  window.togglePlay=function(){
+    if(!audio.src)return;
+    if(audio.paused){audio.play().catch(function(){})}
+    else audio.pause();
+  };
+  window.seek=function(e){
+    if(!audio.duration)return;
+    var bar=document.getElementById('progressBar');
+    var pct=(e.clientX-bar.getBoundingClientRect().left)/bar.offsetWidth;
+    audio.currentTime=pct*audio.duration;
+    broadcast('seek',{currentTime:audio.currentTime});
+  };
+  function updateProgress(){
+    var pct=audio.duration?(audio.currentTime/audio.duration*100):0;
+    document.getElementById('progressFill').style.width=pct+'%';
+    document.getElementById('npCur').textContent=fmtTime(audio.currentTime);
+    if(audio.duration)document.getElementById('npDur').textContent=fmtTime(audio.duration);
+  }
+  function updatePlayBtn(){
+    document.getElementById('playIcon').innerHTML=audio.paused?
+      '<path d="M8 5v14l11-7z"/>':'<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>';
+  }
+
+  // ========== STATUS ==========
+  function setStatus(ok){
+    document.getElementById('statusText').textContent=ok?'已连接':'断开';
+    document.getElementById('dot').style.background=ok?'#22c55e':'#ef4444';
+  }
+  function updateMembers(n){if(n)memberCount=n;document.getElementById('memberInfo').textContent='· 👥 '+(memberCount||1)+' 在线'}
+
+  audio.onloadedmetadata=function(){document.getElementById('npDur').textContent=fmtTime(audio.duration)};
+  setInterval(function(){if(!audio.paused)updateProgress()},500);
+  connect();
+})();
+</script>
+</body>
+</html>

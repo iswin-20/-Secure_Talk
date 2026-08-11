@@ -96,7 +96,7 @@ export default function RoleSelector({ chatId, participants }: RoleSelectorProps
                 disabled={!clickable || claimingId !== null}
                 className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
                   isClaimed && !isReclaimable
-                    ? "border-[rgb(var(--border))] opacity-40 cursor-not-allowed"
+                    ? "border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed"
                     : isClaiming
                     ? "border-[rgb(var(--accent))] bg-[rgb(var(--accent-light))] animate-pulse"
                     : isReclaimable
@@ -108,22 +108,22 @@ export default function RoleSelector({ chatId, participants }: RoleSelectorProps
                   <img
                     src={avatarUrl}
                     alt={`角色 ${p.id}`}
-                    className="w-14 h-14 rounded-full"
+                    className={`w-14 h-14 rounded-full ${isClaimed && !isReclaimable ? "grayscale" : ""}`}
                   />
                   <div
                     className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full border-2 border-[rgb(var(--surface))]"
-                    style={{ backgroundColor: p.color }}
+                    style={{ backgroundColor: isClaimed && !isReclaimable ? "#9ca3af" : p.color }}
                   />
                 </div>
                 <span
                   className={`text-xs font-semibold truncate w-full text-center ${
                     isClaimed && !isReclaimable
-                      ? "text-[rgb(var(--text-muted))]"
+                      ? "text-gray-400 line-through"
                       : "text-[rgb(var(--text-primary))]"
                   }`}
                 >
                   {isClaimed && !isReclaimable
-                    ? p.claimedBy ? `${p.claimedBy.slice(0, 4)} · 已选` : "已选择"
+                    ? p.claimedBy ? `${p.claimedBy.slice(0, 4)} · 已选` : "已被选择"
                     : isReclaimable
                     ? `🔒 ${p.claimedBy ? p.claimedBy.slice(0, 4) : p.id.slice(0, 4)}`
                     : isClaiming

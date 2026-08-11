@@ -13,7 +13,7 @@ const dmSans = DM_Sans({
 
 const inter = Inter({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
+  weight: ["300", "400", "500", "600", "700"],
   variable: "--font-body",
   display: "swap",
 });
@@ -29,8 +29,8 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh-CN" className={`${dmSans.variable} ${inter.variable}`}>
-      <body className="font-sans min-h-screen flex flex-col bg-[rgb(var(--bg-primary))]">
-        <main className="flex-1 flex justify-center items-center p-4">
+      <body className="font-sans min-h-screen flex flex-col bg-white">
+        <main className="flex-1">
           {children}
         </main>
         <Footer />

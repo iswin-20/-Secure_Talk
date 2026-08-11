@@ -1,65 +1,90 @@
 // app/chat/[id]/page.tsx
-import { decrypt } from '@/lib/crypto';
-import { getChatAccessData, getChatHistory } from '../actions';
-import ChatClient from './ChatClient';
-import RoleSelector from './RoleSelector';
-import { headers } from 'next/headers';
-import { checkIpAccess } from '@/lib/access-control';
+import { redis } from "@/lib/redis";
+import { getSessionUser } from "@/lib/auth-server";
+import db from "@/lib/db";
+import type { ChatData } from "@/lib/types";
+import RoleSelector from "./RoleSelector";
+import ChatClient from "./ChatClient";
 
-interface ChatPageProps {
+export default async function ChatPage({ params, searchParams }: {
   params: { id: string };
-  searchParams: { [key: string]: string | string[] | undefined };
-}
-
-export default async function ChatPage({ params, searchParams }: ChatPageProps) {
+  searchParams: { p?: string };
+}) {
   const chatId = params.id;
-  const participant = typeof searchParams.p === 'string' && searchParams.p.length > 0 ? searchParams.p : undefined;
+  const user = getSessionUser();
 
-  // No participant selected — show role selector
-  if (!participant) {
-    const { participants, error } = await getChatHistory(chatId);
-    if (error) {
-      return <div className="text-center p-8 text-red-500">{error}</div>;
-    }
-    return <RoleSelector chatId={chatId} participants={participants || []} />;
+  // Check if user is room creator + get access password
+  let isCreator = false;
+  let accessPassword: string | undefined;
+  if (user) {
+    const room = db.prepare('SELECT creator_id, access_password FROM rooms WHERE id = ?').get(chatId) as { creator_id: number; access_password: string | null } | undefined;
+    isCreator = room?.creator_id === user.id;
+    accessPassword = room?.access_password || undefined;
   }
 
-  // Check IP access
-  const ip = headers().get('x-forwarded-for') ?? '127.0.0.1';
-  const ipAccessResult = await checkIpAccess(chatId, participant, ip);
+  // Load chat data from Redis
+  const raw = await redis.get(`chat:${chatId}`);
+  const data: ChatData | null = raw ? (raw as ChatData) : null;
 
-  if (!ipAccessResult.success) {
-    return <div className="text-center p-8 text-xl font-bold text-red-600">{ipAccessResult.error}</div>;
+  if (!data) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[rgb(var(--bg))]">
+        <div className="text-center p-8">
+          <h1 className="text-2xl font-bold text-[rgb(var(--text-primary))] mb-2">房间不存在</h1>
+          <p className="text-sm text-[rgb(var(--text-muted))] mb-4">此聊天室已过期或不存在。</p>
+          <a href="/" style={{
+            display: "inline-flex", alignItems: "center", gap: "4px",
+            padding: "10px 20px", fontSize: "14px", fontWeight: 500,
+            borderRadius: "10px", background: "linear-gradient(135deg, #4f46e5, #6366f1)",
+            color: "#fff", textDecoration: "none",
+            boxShadow: "0px 2px 8px rgba(99,102,241,0.25)",
+          }}>← 返回大厅</a>
+        </div>
+      </div>
+    );
   }
 
-  // Get participants list to validate participant and get color
-  const { participants, error: participantsError } = await getChatHistory(chatId);
-  if (participantsError) {
-    return <div className="text-center p-8 text-red-500">{participantsError}</div>;
+  const participantId = searchParams.p;
+
+  // If user has a participant ID, show chat
+  if (participantId && data.participants.find(p => p.id === participantId)?.claimed) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[rgb(var(--bg))] p-4">
+        <ChatClient
+          chatId={chatId}
+          myIdentity={participantId}
+          myColor={data.participants.find(p => p.id === participantId)?.color || "#ccc"}
+          participants={data.participants}
+          requiredAccessPassword={accessPassword}
+          isRoomCreator={isCreator}
+        />
+      </div>
+    );
   }
 
-  // Validate that this participant exists in the chat
-  const participantData = participants?.find(p => p.id === participant);
-  if (!participantData) {
-    return <div className="text-center p-8 text-red-500">This participant is not part of this chat.</div>;
+  // Check access password
+  if (data.accessPasswordCipher && !searchParams.p) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[rgb(var(--bg))]">
+        <div className="text-center p-8">
+          <h1 className="text-2xl font-bold text-[rgb(var(--text-primary))] mb-2">需要密码</h1>
+          <p className="text-sm text-[rgb(var(--text-muted))] mb-4">此房间需要密码才能进入</p>
+          <a href="/" style={{
+            display: "inline-flex", alignItems: "center", gap: "4px",
+            padding: "10px 20px", fontSize: "14px", fontWeight: 500,
+            borderRadius: "10px", background: "linear-gradient(135deg, #4f46e5, #6366f1)",
+            color: "#fff", textDecoration: "none",
+            boxShadow: "0px 2px 8px rgba(99,102,241,0.25)",
+          }}>← 返回大厅</a>
+        </div>
+      </div>
+    );
   }
 
-  // Get encrypted access password
-  const { accessPasswordCipher, error } = await getChatAccessData(chatId);
-  if (error) {
-    return <div className="text-center p-8 text-red-500">{error}</div>;
-  }
-
-  // Decrypt access password on server
-  const accessPassword = accessPasswordCipher ? decrypt(accessPasswordCipher) : undefined;
-
+  // Show role selector
   return (
-    <ChatClient
-      chatId={chatId}
-      myIdentity={participant}
-      myColor={participantData.color}
-      participants={participants || []}
-      requiredAccessPassword={accessPassword}
-    />
+    <div className="min-h-screen flex items-center justify-center bg-[rgb(var(--bg))] p-4">
+      <RoleSelector chatId={chatId} participants={data.participants} />
+    </div>
   );
 }

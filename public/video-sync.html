@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>一起看</title>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#fff;--surface:#fafafa;--border:rgba(0,0,0,0.08);--text:#171717;
+  --text-secondary:#4d4d4d;--text-muted:#999;--accent:#6366f1;
+  --ring:0 0 0 1px rgba(0,0,0,0.08);--radius:8px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Geist',-apple-system,sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column}
+.header{display:flex;align-items:center;gap:10px;padding:10px 20px;border-bottom:1px solid var(--border);background:rgba(255,255,255,0.92);backdrop-filter:blur(12px);flex-shrink:0;z-index:10}
+.header .brand{font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.header .badge{background:var(--accent);color:#fff;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:500}
+.header .url-box{flex:1;display:flex;border-radius:var(--radius);box-shadow:0 0 0 1px rgba(0,0,0,0.08)}
+.header .url-box input{flex:1;padding:8px 12px;border:none;background:var(--surface);font-size:13px;font-family:inherit;color:var(--text);outline:none;border-radius:var(--radius) 0 0 var(--radius)}
+.header .url-box input::placeholder{color:var(--text-muted)}
+.header .url-box button{padding:8px 16px;background:var(--text);color:#fff;border:none;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;border-radius:0 var(--radius) var(--radius) 0}
+.header .url-box button:hover{opacity:.85}
+.header .status{font-size:11px;color:var(--text-secondary);display:flex;align-items:center;gap:5px;white-space:nowrap}
+.header .dot{width:6px;height:6px;border-radius:50%;background:#22c55e;animation:pulse 2s infinite}
+.header .clear-btn{width:28px;height:28px;border-radius:50%;border:none;background:var(--surface);cursor:pointer;display:none;align-items:center;justify-content:center;color:var(--text-muted);font-size:16px;transition:all .15s;flex-shrink:0;box-shadow:0 0 0 1px rgba(0,0,0,0.06)}
+.header .clear-btn:hover{background:#fee2e2;color:#ef4444}
+.header .clear-btn.visible{display:flex}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.player-wrap{flex:1;min-height:0;position:relative;background:#000}
+.player-wrap iframe,.player-wrap video,.player-wrap #player{width:100%;height:100%;border:none;background:#000}
+.empty-state{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#fff;z-index:1}
+.empty-state .icon{width:48px;height:48px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 1px rgba(0,0,0,0.06)}
+.empty-state .icon svg{width:22px;height:22px;color:var(--text-muted)}
+.empty-state h3{font-size:16px;font-weight:500;color:var(--text);letter-spacing:-0.3px}
+.empty-state p{font-size:12px;color:var(--text-muted);text-align:center;max-width:320px}
+.footer{text-align:center;padding:8px;font-size:10px;color:var(--text-muted);border-top:1px solid var(--border);flex-shrink:0;display:flex;align-items:center;justify-content:center;gap:8px}
+.footer a{color:var(--accent);text-decoration:none}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="brand" id="modeLabel">🎬 一起看<span class="badge">SYNC</span></div>
+  <div class="url-box" id="urlBox">
+    <input type="text" id="urlInput" placeholder="粘贴 YouTube / 视频链接 / 网页…" onkeydown="if(event.key==='Enter')doLoad()">
+    <button onclick="doLoad()">加载</button>
+  </div>
+  <button class="clear-btn" id="clearBtn" onclick="clearPlayer()" title="关闭视频">✕</button>
+  <div class="status"><span class="dot" id="dot"></span><span id="statusText">已连接</span><span id="memberInfo" style="margin-left:4px"></span></div>
+</div>
+
+<div class="player-wrap" id="playerWrap">
+  <div id="player"></div>
+  <div id="empty" class="empty-state">
+    <div class="icon"><svg fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z"/></svg></div>
+    <h3>粘贴链接，开始同步</h3>
+    <p>支持 YouTube（自动同步）、视频直链（.mp4/.webm）、任意网页</p>
+  </div>
+</div>
+<div class="footer"><span>🔗 <a href="https://talk.vidaxl.space">Secure Talk</a></span></div>
+
+<script>
+(function(){
+  var p=new URLSearchParams(location.search);
+  var ROOM=p.get('room')||'default';
+  var MODE=location.pathname.includes('music')?'music':'video';
+  var uid='u'+Math.random().toString(36).substr(2,6);
+  var ws,ytPlayer,videoEl,lastSync=0,memberCount=0,currentPlayer='none';
+  var currentUrl='';
+
+  // --- MUSIC MODE ---
+  if(MODE==='music'){
+    document.getElementById('modeLabel').innerHTML='🎵 一起听<span class="badge">MINERADIO</span>';
+    document.getElementById('urlBox').style.display='none';
+    document.getElementById('empty').style.display='none';
+    document.getElementById('player').innerHTML='<iframe src="https://music.vidaxl.space" style="width:100%;height:100%;border:none;"></iframe>';
+    document.querySelector('.footer').innerHTML='<span>🎧 <a href="https://music.vidaxl.space">Mineradio</a> · 登录后同步歌词</span>';
+    connect();
+    return;
+  }
+
+  // --- VIDEO MODE ---
+  function connect(){
+    var proto=location.protocol==='https:'?'wss:':'ws:';
+    ws=new WebSocket(proto+'//'+location.host+'/ws?language=zh-CN');
+    ws.onopen=function(){setStatus(true);ws.send(JSON.stringify({method:'/room/join',data:{name:ROOM,password:''}}));};
+    ws.onmessage=function(e){
+      var m=JSON.parse(e.data);
+      if(m.method==='/room/join'){
+        updateMembers(m.data.memberCount);
+        if(m.data.url){currentUrl=m.data.url;loadPlayer(m.data.url);}
+      }else if(m.method==='/room/update'){
+        updateMembers(m.data.memberCount);
+        if(m.data.url&&m.data.url!==currentUrl){currentUrl=m.data.url;loadPlayer(m.data.url)}
+        else if(m.data.url===''){clearPlayer()}
+        syncState(m.data);
+      }
+    };
+    ws.onclose=function(){setStatus(false);setTimeout(connect,3000)};};
+
+  function isYT(url){return /(youtube\.com|youtu\.be)/.test(url)}
+  function isVideoFile(url){return /\.(mp4|webm|ogg|mov|mkv)(\?|$)/i.test(url)}
+  function getVid(url){try{var u=new URL(url);return u.searchParams.get('v')||u.pathname.split('/').pop()||url}catch(e){return url}}
+
+  function loadPlayer(url){
+    currentUrl=url;
+    document.getElementById('urlInput').value=url;
+    document.getElementById('clearBtn').classList.add('visible');
+    document.getElementById('empty').style.display='none';
+    document.getElementById('player').innerHTML='';
+    ytPlayer=null;videoEl=null;
+
+    if(isYT(url)){
+      currentPlayer='youtube';
+      var el=document.createElement('div');el.id='player';el.innerHTML='';
+      document.getElementById('playerWrap').querySelector('#player')||document.getElementById('playerWrap').appendChild(el);
+      if(!window.YT||!window.YT.Player){
+        var t=document.createElement('script');t.src='https://www.youtube.com/iframe_api';document.head.appendChild(t);
+        window.onYouTubeIframeAPIReady=function(){createYT(getVid(url));};
+      }else createYT(getVid(url));
+    }else if(isVideoFile(url)){
+      currentPlayer='video';
+      videoEl=document.createElement('video');
+      videoEl.src=url;videoEl.controls=true;videoEl.autoplay=true;
+      videoEl.style.cssText='width:100%;height:100%';
+      videoEl.onplay=function(){broadcast()};videoEl.onpause=function(){broadcast()};
+      videoEl.onseeked=function(){broadcast()};videoEl.onratechange=function(){broadcast()};
+      document.getElementById('player').appendChild(videoEl);
+      setTimeout(function(){broadcast()},500);
+    }else{
+      currentPlayer='iframe';
+      var ifr=document.createElement('iframe');
+      ifr.src=url;ifr.style.cssText='width:100%;height:100%;border:none';
+      document.getElementById('player').appendChild(ifr);
+    }
+    // Always broadcast url to create/update room
+    sendUrl();
+  }
+
+  function sendUrl(){
+    if(!ws||ws.readyState!==1)return;
+    ws.send(JSON.stringify({method:'/room/update',data:{url:currentUrl,name:ROOM,password:'',sendLocalTimestamp:Date.now()/1000,tempUser:uid,public:true}}));
+  }
+
+  function createYT(v){
+    ytPlayer=new YT.Player('player',{height:'100%',width:'100%',
+      playerVars:{autoplay:1,controls:1,modestbranding:1,rel:0},
+      events:{onReady:function(){ytPlayer.loadVideoById(v);setTimeout(function(){broadcast()},1000)},onStateChange:function(){broadcast()},onError:function(){}}});
+  }
+
+  function syncState(r){
+    if(currentPlayer==='youtube'&&ytPlayer&&ytPlayer.getCurrentTime){
+      if(Math.abs(ytPlayer.getCurrentTime()-(r.currentTime||0))>2)ytPlayer.seekTo(r.currentTime,true);
+      if((r.paused?1:0)!==(ytPlayer.getPlayerState()===1?0:1))r.paused?ytPlayer.pauseVideo():ytPlayer.playVideo();
+      if(r.playbackRate&&Math.abs(ytPlayer.getPlaybackRate()-r.playbackRate)>0.05)ytPlayer.setPlaybackRate(r.playbackRate);
+    }else if(currentPlayer==='video'&&videoEl){
+      if(Math.abs(videoEl.currentTime-(r.currentTime||0))>2)videoEl.currentTime=r.currentTime||0;
+      if(r.paused!==videoEl.paused)r.paused?videoEl.pause():videoEl.play();
+      videoEl.playbackRate=r.playbackRate||1;
+    }
+  }
+
+  function broadcast(){
+    if(!ws||ws.readyState!==1)return;
+    var n=Date.now();if(n-lastSync<400)return;lastSync=n;
+    var state=currentPlayer==='youtube'?{currentTime:ytPlayer.getCurrentTime?ytPlayer.getCurrentTime():0,paused:ytPlayer.getPlayerState()!==1,playbackRate:ytPlayer.getPlaybackRate?ytPlayer.getPlaybackRate():1,duration:ytPlayer.getDuration?ytPlayer.getDuration():0}
+      :currentPlayer==='video'?{currentTime:videoEl.currentTime,paused:videoEl.paused,playbackRate:videoEl.playbackRate,duration:videoEl.duration}
+      :{currentTime:0,paused:true,playbackRate:1,duration:0};
+    ws.send(JSON.stringify({method:'/room/update',data:Object.assign(state,{
+      url:currentUrl,name:ROOM,password:'',sendLocalTimestamp:Date.now()/1000,tempUser:uid,public:true
+    })}));
+  }
+
+  function setStatus(ok){document.getElementById('statusText').textContent=ok?'已连接':'断开';document.getElementById('dot').style.background=ok?'#22c55e':'#ef4444'}
+  function updateMembers(n){if(n)memberCount=n;document.getElementById('memberInfo').textContent='· 👥 '+(memberCount||1)+' 在线'}
+
+  window.doLoad=function(){
+    var v=document.getElementById('urlInput').value.trim();if(!v)return;
+    if(!/^https?:\/\//.test(v))v='https://'+v;
+    currentUrl=v;loadPlayer(v);
+  };
+
+  function clearPlayer(){
+    currentUrl='';currentPlayer='none';
+    ytPlayer=null;videoEl=null;
+    document.getElementById('player').innerHTML='';
+    document.getElementById('empty').style.display='flex';
+    document.getElementById('urlInput').value='';
+    document.getElementById('clearBtn').classList.remove('visible');
+    if(ws&&ws.readyState===1){
+      ws.send(JSON.stringify({method:'/room/update',data:{url:'',name:ROOM,password:'',sendLocalTimestamp:Date.now()/1000,tempUser:uid,public:true}}));
+    }
+  }
+
+  window.clearPlayer=clearPlayer;
+
+  // Only broadcast for players that can sync (YT/video), not iframe
+  setInterval(function(){if(currentPlayer==='youtube'||currentPlayer==='video')broadcast()},3000);
+  connect();
+})();
+</script>
+</body>
+</html>

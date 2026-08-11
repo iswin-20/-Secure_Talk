@@ -44,13 +44,24 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
   
-  // 4. 处理根路径的访问逻辑 (与您原来保持一致)
+  // 4. 根路径 — 大厅页面，直接放行
   if (pathname === '/') {
-    // 只有当v参数存在且合法时，才认为是有效路径
-    if (v && (v.length === 5 || v.length === 6)) {
-      return NextResponse.next();
-    }
-    // 注意：如果只是访问 /，上面的if不满足，会继续向下走到最终的404
+    return NextResponse.next();
+  }
+
+  // 5. 认证页面 — 直接放行
+  if (pathname === '/auth') {
+    return NextResponse.next();
+  }
+
+  // 6. 信息页面 — 直接放行
+  if (['/about', '/help', '/terms', '/privacy'].includes(pathname)) {
+    return NextResponse.next();
+  }
+
+  // 7. 视频/音乐同步页面 — 直接放行
+  if (['/video-sync.html', '/music-sync.html'].includes(pathname)) {
+    return NextResponse.next();
   }
 
   // 【兜底规则】如果以上所有规则都不匹配，说明是无效路径，返回 404

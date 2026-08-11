@@ -21,9 +21,10 @@ interface ChatClientProps {
   myColor: string;
   participants: Participant[];
   requiredAccessPassword?: string;
+  isRoomCreator?: boolean;
 }
 
-export default function ChatClient({ chatId, myIdentity, myColor, participants, requiredAccessPassword }: ChatClientProps) {
+export default function ChatClient({ chatId, myIdentity, myColor, participants, requiredAccessPassword, isRoomCreator = false }: ChatClientProps) {
   const [accessKey, setAccessKey] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(!requiredAccessPassword);
   const [passwordInput, setPasswordInput] = useState("");
@@ -45,6 +46,7 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
   const [showReactionPicker, setShowReactionPicker] = useState<number | null>(null);
   const [destroyVotes, setDestroyVotes] = useState<string[]>([]);
   const [showDestroyMenu, setShowDestroyMenu] = useState(false);
+  const [activeTab, setActiveTab] = useState<'chat' | 'video' | 'music'>('chat');
   const [dndEnabled, setDndEnabled] = useState(() => {
     if (typeof window !== "undefined") return localStorage.getItem("chat-dnd") === "true";
     return false;
@@ -71,11 +73,17 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
     return new Date(ts).toLocaleTimeString("zh-CN", { timeZone: "Asia/Shanghai", hour: "2-digit", minute: "2-digit" });
   };
 
-  // 1. Get encryption key from URL hash
+  // 1. Get encryption key
   useEffect(() => {
     const key = window.location.hash.substring(1);
-    if (key) setAccessKey(key);
-    else setError("未找到加密密钥，聊天无法访问。");
+    if (key) {
+      setAccessKey(key);
+    } else if (!requiredAccessPassword) {
+      // Public room — derive key from roomId so all members share the same key
+      crypto.subtle.digest('SHA-256', new TextEncoder().encode('vt_room_' + chatId))
+        .then(hash => setAccessKey(btoa(String.fromCharCode(...new Uint8Array(hash)))));
+    }
+    // Private room — key comes from password (handleAuth) or hash, no error here
   }, []);
 
   // 2. Decrypt messages
@@ -201,7 +209,7 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
     const atBottom = container.scrollHeight - container.clientHeight <= container.scrollTop + 100;
     // Always scroll on initial load, then only when user is at bottom
     if (!initialLoadDone.current || atBottom) {
-      messagesEndRef.current?.scrollIntoView({ behavior: initialLoadDone.current ? "smooth" : "auto" });
+      messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
     }
     initialLoadDone.current = true;
     if (messages.length === 0) initialLoadDone.current = false;
@@ -293,8 +301,15 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessKey]);
 
-  const handleAuth = () => {
-    if (passwordInput === requiredAccessPassword) { setIsAuthenticated(true); setAuthError(""); }
+  const handleAuth = async () => {
+    if (passwordInput === requiredAccessPassword) {
+      setIsAuthenticated(true);
+      setAuthError("");
+      // Derive encryption key from password using SHA-256
+      const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(passwordInput));
+      const key = btoa(String.fromCharCode(...new Uint8Array(hash)));
+      setAccessKey(key);
+    }
     else setAuthError("密码错误");
   };
 
@@ -474,9 +489,29 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
     }
   };
 
+  const handleCreatorDissolve = async () => {
+    if (!confirm("确定要解散此房间吗？所有聊天记录将被永久删除，此操作不可撤销。")) return;
+    setShowDestroyMenu(false);
+    try {
+      const res = await fetch("/api/rooms/dissolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ roomId: chatId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setIsDestroyed(true);
+      } else {
+        setError(data.error || "解散失败");
+      }
+    } catch {
+      setError("解散失败");
+    }
+  };
+
   const findReplyMsg = (ts?: number) => ts ? messages.find(m => m.timestamp === ts) : null;
 
-  if (!accessKey) {
+  if (!accessKey && isAuthenticated) {
     return (
       <div className="w-full max-w-lg">
         <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl p-8 text-center">
@@ -544,8 +579,8 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
 
   return (
     <div
-      className={`flex flex-col bg-[rgb(var(--surface))] border rounded-2xl shadow-xl shadow-black/5 animate-scale-in overflow-hidden relative ${isDragging ? "border-[rgb(var(--accent))] ring-2 ring-[rgb(var(--accent))]/20" : "border-[rgb(var(--border))]"}`}
-      style={{ resize: "both", minHeight: "400px", minWidth: "520px", height: "80vh", maxWidth: "90vw", width: "100%" }}
+      className={`flex flex-col bg-[rgb(var(--surface))] border rounded-2xl shadow-xl shadow-black/5 overflow-hidden relative ${isDragging ? "border-[rgb(var(--accent))] ring-2 ring-[rgb(var(--accent))]/20" : "border-[rgb(var(--border))]"}`}
+      style={{ resize: "both", minHeight: "400px", minWidth: "400px", height: "80vh", maxWidth: "95vw", width: "100%" }}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -563,6 +598,16 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-3 border-b border-[rgb(var(--border))] bg-[rgb(var(--surface-secondary))]">
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              const key = window.location.hash.substring(1);
+              const link = key ? 'https://talk.vidaxl.space/chat/' + chatId + '#' + key : 'https://talk.vidaxl.space/chat/' + chatId;
+              navigator.clipboard.writeText(link);
+              const btn = document.activeElement;
+              if (btn) { btn.textContent = '✓ 已复制'; setTimeout(() => { btn.textContent = '🔗 分享'; }, 2000); }
+            }}
+            className="px-3 py-1.5 text-xs font-medium rounded-lg border border-[rgb(var(--border))] text-[rgb(var(--text-secondary))] hover:text-[rgb(var(--text-primary))] hover:bg-[rgb(var(--surface-tertiary))]"
+          >🔗 分享</button>
           <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: myColor }} />
           <h1 className="font-display text-base font-bold text-[rgb(var(--text-primary))]">安全聊天 · {participants.filter(p => p.claimed).length}/{participants.length}人</h1>
         </div>
@@ -602,27 +647,74 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
             </button>
             {showDestroyMenu && (
               <div className="absolute right-0 top-full mt-1 bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-xl shadow-xl z-50 py-1 min-w-[180px] animate-scale-in">
-                <button onClick={handleDeleteMyMessages} className="w-full text-left px-4 py-2 text-sm text-[rgb(var(--text-primary))] hover:bg-[rgb(var(--surface-secondary))] transition-colors flex items-center gap-2">
-                  <svg className="w-4 h-4 text-[rgb(var(--text-muted))]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
-                  删除我的消息
-                </button>
-                <button onClick={handleDeleteMyMessagesAndLeave} className="w-full text-left px-4 py-2 text-sm text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors flex items-center gap-2">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
-                  </svg>
-                  删除并退出
-                </button>
-                <div className="border-t border-[rgb(var(--border))] my-1" />
-                <button onClick={handleVoteDestroyChat} className={`w-full text-left px-4 py-2 text-sm transition-colors flex items-center gap-2 ${destroyVotes.includes(myIdentity) ? "text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20" : "text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"}`}>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
-                  {destroyVotes.includes(myIdentity) ? "取消投票销毁" : "投票销毁聊天"}
-                </button>
+                {isRoomCreator ? (
+                  <button onClick={handleCreatorDissolve} className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                    解散房间
+                  </button>
+                ) : (
+                  <>
+                    <button onClick={handleDeleteMyMessages} className="w-full text-left px-4 py-2 text-sm text-[rgb(var(--text-primary))] hover:bg-[rgb(var(--surface-secondary))] transition-colors flex items-center gap-2">
+                      <svg className="w-4 h-4 text-[rgb(var(--text-muted))]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" /></svg>
+                      删除我的消息
+                    </button>
+                    <button onClick={handleDeleteMyMessagesAndLeave} className="w-full text-left px-4 py-2 text-sm text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-colors flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                      </svg>
+                      删除并退出
+                    </button>
+                    <div className="border-t border-[rgb(var(--border))] my-1" />
+                    <button onClick={handleVoteDestroyChat} className={`w-full text-left px-4 py-2 text-sm transition-colors flex items-center gap-2 ${destroyVotes.includes(myIdentity) ? "text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-900/20" : "text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"}`}>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+                      {destroyVotes.includes(myIdentity) ? "取消投票销毁" : "投票销毁聊天"}
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
         </div>
       </div>
 
+      {/* Tab Bar */}
+      <div className="flex border-b border-[rgb(var(--border))] bg-[rgb(var(--surface-secondary))]">
+        {(['chat', 'video', 'music'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+              activeTab === tab
+                ? 'text-[rgb(var(--accent))] border-b-2 border-[rgb(var(--accent))]'
+                : 'text-[rgb(var(--text-muted))] hover:text-[rgb(var(--text-primary))]'
+            }`}
+          >
+            {tab === 'chat' ? '💬 聊天' : tab === 'video' ? '🎬 视频' : '🎵 音乐'}
+          </button>
+        ))}
+      </div>
+
+      {/* Video Tab */}
+      {activeTab === 'video' && (
+        <iframe
+          src={`/video-sync.html?room=${encodeURIComponent(chatId)}`}
+          className="flex-1 w-full border-0"
+          style={{ minHeight: 0 }}
+        />
+      )}
+
+      {/* Music Tab */}
+      {activeTab === 'music' && (
+        <iframe
+          src={`/music-sync.html?room=${encodeURIComponent(chatId)}`}
+          className="flex-1 w-full border-0"
+          style={{ minHeight: 0 }}
+        />
+      )}
+
+      {/* Chat Tab */}
+      {activeTab === 'chat' && (
+      <div className="flex-1 flex flex-col" style={{minHeight:0}}>
       {/* Vote banner — always visible above messages */}
       {destroyVotes.length > 0 && (() => {
         const votesNeeded = Math.max(1, Math.ceil(participants.filter(p => p.claimed).length / 2));
@@ -665,7 +757,7 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
           </div>
         );
       })()}
-      {destroyVotes.length === 0 && (
+      {destroyVotes.length === 0 && !isRoomCreator && (
         <div className="flex justify-center pt-3 pb-1">
           <button
             onClick={handleVoteDestroyChat}
@@ -928,6 +1020,8 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
           </button>
         </div>
       </div>
+      </div>
+      )}
     </div>
   );
 }

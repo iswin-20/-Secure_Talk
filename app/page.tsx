@@ -1,20 +1,36 @@
-// app/page.tsx
-import View from './view';
+import { getSessionUser } from "@/lib/auth-server";
+import { redirect } from "next/navigation";
+import db from "@/lib/db";
+import LobbyPage from "@/components/LobbyPage";
 
-// （可选，但强烈推荐）添加此行可以强制页面动态渲染，作为双重保险来解决此问题。
-//export const dynamic = 'force-dynamic';
+export const dynamic = 'force-dynamic';
 
-// interface PageProps {
-//   searchParams: { [key: string]: string | string[] | undefined };
-// }
+export interface Room {
+  id: string;
+  name: string;
+  creator: string;
+  creator_id: number;
+  is_public: boolean;
+  participant_count: number;
+  created_at: number;
+}
 
-export default async function ViewPage({
-  searchParams,
-}: {
-  searchParams: { [key: string]: string | string[] | undefined };
-}) {
-  // 页面本身不做任何复杂的逻辑，
-  // 只是把 searchParams.v 参数传递给 View 组件。
-  // 这种隔离可以有效避免静态分析错误。
-  return <View v={searchParams.v} />;
+export default async function HomePage() {
+  const user = getSessionUser();
+
+  if (!user) {
+    redirect("/auth");
+  }
+
+  const userObj = { id: user.id, username: user.username };
+
+  // 公开房间 + 当前用户创建的私密房间
+  const rows = db.prepare(
+    `SELECT r.id, r.name, u.username as creator, r.creator_id, r.is_public, r.participant_count, r.created_at
+     FROM rooms r JOIN users u ON r.creator_id = u.id
+     WHERE r.is_public = 1 OR r.creator_id = ?
+     ORDER BY r.created_at DESC LIMIT 50`
+  ).all(user.id) as Room[];
+
+  return <LobbyPage user={userObj} rooms={rows} />;
 }
