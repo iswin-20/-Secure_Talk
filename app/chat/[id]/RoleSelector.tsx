@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { claimParticipant } from "../actions";
+import { claimParticipant, reclaimParticipant } from "../actions";
 import type { Participant } from "@/lib/types";
 
 interface RoleSelectorProps {
@@ -13,28 +13,52 @@ export default function RoleSelector({ chatId, participants }: RoleSelectorProps
   const [error, setError] = useState("");
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
+  const [showDialog, setShowDialog] = useState<{ id: string; isReclaim: boolean } | null>(null);
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
 
-  const handleClaim = (participantId: string) => {
+  const handleClaimClick = (p: Participant) => {
     if (claimingId) return;
     setError("");
-    setClaimingId(participantId);
+    // If claimed but has password, it's a reclaim scenario
+    if (p.claimed && p.passwordHash) {
+      setShowDialog({ id: p.id, isReclaim: true });
+    } else if (!p.claimed) {
+      // New claim — optionally set password
+      setShowDialog({ id: p.id, isReclaim: false });
+    }
+  };
+
+  const handleConfirm = () => {
+    if (!showDialog) return;
+    const { id, isReclaim } = showDialog;
+    
+    if (isReclaim && !password.trim()) {
+      setError("请输入密码");
+      return;
+    }
+
+    setClaimingId(id);
+    setError("");
 
     startTransition(async () => {
-      const result = await claimParticipant(chatId, participantId);
+      let result;
+      if (isReclaim) {
+        result = await reclaimParticipant(chatId, id, password);
+      } else {
+        result = await claimParticipant(chatId, id, password || undefined, name || undefined);
+      }
       if (!result.success) {
         setError(result.error || "认领失败");
         setClaimingId(null);
         return;
       }
-
-      // Preserve encryption key from URL hash
       const key = window.location.hash;
-      window.location.href = `${window.location.pathname}?p=${participantId}${key}`;
+      window.location.href = `${window.location.pathname}?p=${id}${key}`;
     });
   };
 
   const claimedCount = participants.filter(p => p.claimed).length;
-  const allClaimed = claimedCount === participants.length;
 
   return (
     <div className="w-full max-w-xl animate-scale-in">
@@ -48,7 +72,7 @@ export default function RoleSelector({ chatId, participants }: RoleSelectorProps
           </p>
         </div>
 
-        {allClaimed && (
+        {claimedCount === participants.length && !participants.some(p => p.claimed && p.passwordHash) && (
           <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-center">
             <p className="text-sm text-amber-700 dark:text-amber-300 font-medium">
               所有角色已被选择，聊天室已满。
@@ -61,18 +85,22 @@ export default function RoleSelector({ chatId, participants }: RoleSelectorProps
           {participants.map((p) => {
             const avatarUrl = `https://api.dicebear.com/9.x/notionists/svg?seed=${encodeURIComponent(p.id)}`;
             const isClaimed = p.claimed;
+            const isReclaimable = isClaimed && !!p.passwordHash;
             const isClaiming = claimingId === p.id;
+            const clickable = !isClaimed || isReclaimable;
 
             return (
               <button
                 key={p.id}
-                onClick={() => !isClaimed && handleClaim(p.id)}
-                disabled={isClaimed || claimingId !== null}
+                onClick={() => clickable && handleClaimClick(p)}
+                disabled={!clickable || claimingId !== null}
                 className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${
-                  isClaimed
+                  isClaimed && !isReclaimable
                     ? "border-[rgb(var(--border))] opacity-40 cursor-not-allowed"
                     : isClaiming
                     ? "border-[rgb(var(--accent))] bg-[rgb(var(--accent-light))] animate-pulse"
+                    : isReclaimable
+                    ? "border-amber-400 bg-amber-50 dark:bg-amber-900/10 hover:border-[rgb(var(--accent))] hover:bg-[rgb(var(--accent-light))] cursor-pointer"
                     : "border-[rgb(var(--border))] hover:border-[rgb(var(--accent))] hover:bg-[rgb(var(--accent-light))] hover:shadow-md cursor-pointer"
                 }`}
               >
@@ -89,12 +117,18 @@ export default function RoleSelector({ chatId, participants }: RoleSelectorProps
                 </div>
                 <span
                   className={`text-xs font-semibold truncate w-full text-center ${
-                    isClaimed
+                    isClaimed && !isReclaimable
                       ? "text-[rgb(var(--text-muted))]"
                       : "text-[rgb(var(--text-primary))]"
                   }`}
                 >
-                  {isClaimed ? "已选择" : isClaiming ? "选择中..." : p.id.slice(0, 4)}
+                  {isClaimed && !isReclaimable
+                    ? p.claimedBy ? `${p.claimedBy.slice(0, 4)} · 已选` : "已选择"
+                    : isReclaimable
+                    ? `🔒 ${p.claimedBy ? p.claimedBy.slice(0, 4) : p.id.slice(0, 4)}`
+                    : isClaiming
+                    ? "选择中..."
+                    : p.id.slice(0, 4)}
                 </span>
               </button>
             );
@@ -104,6 +138,60 @@ export default function RoleSelector({ chatId, participants }: RoleSelectorProps
         {error && (
           <div className="p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
             <p className="text-sm text-red-600 dark:text-red-400 text-center">{error}</p>
+          </div>
+        )}
+
+        {/* Password Dialog */}
+        {showDialog && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 animate-fade-in" onClick={() => { setShowDialog(null); setPassword(""); setName(""); setError(""); }}>
+            <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl p-6 shadow-2xl w-full max-w-sm mx-4 animate-scale-in" onClick={e => e.stopPropagation()}>
+              <h2 className="text-lg font-bold text-[rgb(var(--text-primary))] mb-1">
+                {showDialog.isReclaim ? "密码验证" : "设置角色"}
+              </h2>
+              <p className="text-sm text-[rgb(var(--text-secondary))] mb-4">
+                {showDialog.isReclaim
+                  ? "此角色已设置密码，输入密码即可重新进入"
+                  : "可选：设置昵称和密码，退出后可凭密码重新进入"}
+              </p>
+              
+              {!showDialog.isReclaim && (
+                <input
+                  type="text"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  placeholder="昵称（可选）"
+                  className="w-full px-3 py-2 text-sm border border-[rgb(var(--border))] rounded-xl mb-3 outline-none focus:border-[rgb(var(--accent))] focus:ring-2 focus:ring-[rgb(var(--accent))]/10"
+                  autoFocus
+                  onKeyDown={e => e.key === "Enter" && handleConfirm()}
+                />
+              )}
+              
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder={showDialog.isReclaim ? "输入密码" : "设置密码（可选，不设则不可恢复）"}
+                className="w-full px-3 py-2 text-sm border border-[rgb(var(--border))] rounded-xl outline-none focus:border-[rgb(var(--accent))] focus:ring-2 focus:ring-[rgb(var(--accent))]/10"
+                autoFocus={showDialog.isReclaim}
+                onKeyDown={e => e.key === "Enter" && handleConfirm()}
+              />
+              
+              <div className="flex gap-2 mt-4">
+                <button
+                  onClick={() => { setShowDialog(null); setPassword(""); setName(""); setError(""); }}
+                  className="flex-1 py-2 text-sm font-medium rounded-xl border border-[rgb(var(--border))] text-[rgb(var(--text-secondary))] hover:bg-[rgb(var(--surface-secondary))] transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleConfirm}
+                  disabled={claimingId !== null}
+                  className="flex-1 py-2 text-sm font-medium rounded-xl bg-[rgb(var(--accent))] text-white hover:bg-[rgb(var(--accent-hover))] disabled:opacity-40 transition-colors"
+                >
+                  确认
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

@@ -10,6 +10,7 @@ import { destroyChatRoom } from '@/lib/destroy-logic';
 import { revalidatePath } from 'next/cache';
 import { generateLinkLogic } from '@/lib/generate-logic';
 import { headers } from 'next/headers';
+import { createHash } from 'crypto';
 
 const CHAT_EXPIRY = 3 * 24 * 3600;
 
@@ -114,10 +115,12 @@ export async function destroyChat(chatId: string): Promise<{ success: boolean; e
   return result;
 }
 
-// 6. Claim a participant slot
+// 6. Claim a participant slot (with optional password + name)
 export async function claimParticipant(
   chatId: string,
   participantId: string,
+  password?: string,
+  name?: string,
 ): Promise<{ success: boolean; color?: string; error?: string }> {
   try {
     const data: ChatData | null = await redis.get(`chat:${chatId}`);
@@ -128,12 +131,41 @@ export async function claimParticipant(
     if (participant.claimed) return { success: false, error: '此角色已被选择。' };
 
     participant.claimed = true;
+    if (password) participant.passwordHash = createHash('sha256').update(password).digest('hex');
+    if (name) participant.claimedBy = name;
     await redis.set(`chat:${chatId}`, data, { ex: CHAT_EXPIRY });
 
     return { success: true, color: participant.color };
   } catch (e) {
     console.error('Claim participant error:', e);
     return { success: false, error: 'Failed to claim participant slot.' };
+  }
+}
+
+// 6b. Reclaim a password-protected participant
+export async function reclaimParticipant(
+  chatId: string,
+  participantId: string,
+  password: string,
+): Promise<{ success: boolean; color?: string; error?: string }> {
+  try {
+    const data: ChatData | null = await redis.get(`chat:${chatId}`);
+    if (!data) return { success: false, error: 'Chat not found or expired.' };
+
+    const participant = data.participants.find(p => p.id === participantId);
+    if (!participant) return { success: false, error: 'Invalid participant.' };
+    if (!participant.passwordHash) return { success: false, error: '此角色未设置密码，请联系创建者。' };
+    
+    const hash = createHash('sha256').update(password).digest('hex');
+    if (hash !== participant.passwordHash) return { success: false, error: '密码错误。' };
+
+    participant.claimed = true;
+    await redis.set(`chat:${chatId}`, data, { ex: CHAT_EXPIRY });
+
+    return { success: true, color: participant.color };
+  } catch (e) {
+    console.error('Reclaim participant error:', e);
+    return { success: false, error: 'Failed to reclaim participant.' };
   }
 }
 
@@ -201,7 +233,9 @@ export async function leaveChat(
     if (!data) return { success: false, error: 'Chat not found or expired.' };
 
     data.messages = data.messages.filter(m => m.sender !== myIdentity);
-    data.participants = data.participants.filter(p => p.id !== myIdentity);
+    // Unclaim the participant but keep it (passwordHash stays for re-entry)
+    const p = data.participants.find(p => p.id === myIdentity);
+    if (p) p.claimed = false;
     // Remove their vote if they voted
     if (data.destroyVotes) {
       data.destroyVotes = data.destroyVotes.filter(v => v !== myIdentity);

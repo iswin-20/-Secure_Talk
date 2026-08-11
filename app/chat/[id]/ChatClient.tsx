@@ -66,6 +66,11 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
   });
   const dragCounterRef = useRef(0);
 
+  // Format timestamp to Beijing time
+  const formatBeijingTime = (ts: number) => {
+    return new Date(ts).toLocaleTimeString("zh-CN", { timeZone: "Asia/Shanghai", hour: "2-digit", minute: "2-digit" });
+  };
+
   // 1. Get encryption key from URL hash
   useEffect(() => {
     const key = window.location.hash.substring(1);
@@ -80,6 +85,8 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
       const newDecryptedContent: Record<string, string> = {};
       const newDecryptedImages: Record<string, string> = {};
       for (const msg of messages) {
+        // Skip GIF messages — their content is a preview URL, not encrypted text
+        if (msg.gifUrl) continue;
         if (msg.content && !decryptedContent[msg.timestamp]) {
           try {
             const plainText = await decryptMessage(accessKey, msg.content);
@@ -347,6 +354,7 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
       return next;
     });
   };
+  const [stolenMsgId, setStolenMsgId] = useState<number | null>(null);
 
   const handleTranslate = async (msgTimestamp: number) => {
     // Toggle: if already translated, remove it
@@ -701,10 +709,10 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
                           </span>
                         </div>
                       )}
-                      {msg.content && decryptedContent[msg.timestamp] && (
+                      {msg.content && !msg.gifUrl && decryptedContent[msg.timestamp] && (
                         <WechatEmojiRenderer text={decryptedContent[msg.timestamp]} emojiSize={22} spriteUrl="/sprite.png" />
                       )}
-                      {msg.content && !decryptedContent[msg.timestamp] && <span className="text-[rgb(var(--text-muted))]">解密中...</span>}
+                      {msg.content && !msg.gifUrl && !decryptedContent[msg.timestamp] && <span className="text-[rgb(var(--text-muted))]">解密中...</span>}
                       {msg.imageData && decryptedImages[msg.timestamp] && (
                         <img src={decryptedImages[msg.timestamp]} alt="图片" className="max-w-[300px] rounded-lg" />
                       )}
@@ -728,13 +736,20 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
                   {/* Steal sticker button — only for GIF messages */}
                   {msg.gifUrl && (
                     <button
-                      onClick={() => stealSticker({ id: String(msg.timestamp), url: msg.gifUrl!, preview: msg.content || msg.gifUrl!, description: "GIF" })}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full hover:bg-[rgb(var(--accent))]/10 shrink-0 mb-1"
+                      onClick={() => {
+                        stealSticker({ id: String(msg.timestamp), url: msg.gifUrl!, preview: msg.content || msg.gifUrl!, description: "GIF" });
+                        setStolenMsgId(msg.timestamp);
+                        setTimeout(() => setStolenMsgId(null), 1500);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full hover:bg-[rgb(var(--accent))]/10 shrink-0 mb-1 relative"
                       title="偷表情"
                     >
                       <svg className="w-4 h-4 text-[rgb(var(--text-muted))] hover:text-[rgb(var(--accent))]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 10.5l4.72-4.72a.75.75 0 011.28.53v11.38a.75.75 0 01-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 002.25-2.25v-9a2.25 2.25 0 00-2.25-2.25h-9A2.25 2.25 0 002.25 7.5v9a2.25 2.25 0 002.25 2.25z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
                       </svg>
+                      {stolenMsgId === msg.timestamp && (
+                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-medium text-[rgb(var(--accent))] whitespace-nowrap animate-fade-in">已偷!</span>
+                      )}
                     </button>
                   )}
                   {/* Translate button — beside bubble, visible on hover */}
@@ -778,6 +793,11 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
                   )}
                 </div>
                 {isSelf && <img src={selfAvatarUrl} className="w-7 h-7 rounded-full shrink-0" alt="" />}
+              </div>
+
+              {/* Timestamp — Beijing time */}
+              <div className={`${isSelf ? "text-right mr-9" : "ml-9"}`}>
+                <span className="text-[10px] text-[rgb(var(--text-muted))]">{formatBeijingTime(msg.timestamp)}</span>
               </div>
 
               {/* Translation display */}
@@ -848,9 +868,9 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
 
         {showGifPicker && (
           <div className="absolute bottom-full left-4 right-4 mb-3 z-50 animate-slide-up">
-            <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl shadow-xl overflow-hidden" style={{ maxHeight: "420px" }}>
+            <div className="bg-[rgb(var(--surface))] border border-[rgb(var(--border))] rounded-2xl shadow-xl overflow-hidden" style={{ maxHeight: "300px" }}>
               {/* Search bar */}
-              <div className="p-3 border-b border-[rgb(var(--border))]">
+              <div className="p-2 border-b border-[rgb(var(--border))]">
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -872,8 +892,8 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
                 )}
               </div>
               {/* Results grid */}
-              <div className="overflow-y-auto p-2" style={{ maxHeight: "320px" }}>
-                <div className="grid grid-cols-3 gap-1.5">
+              <div className="overflow-y-auto p-2" style={{ maxHeight: "200px" }}>
+                <div className="grid grid-cols-4 gap-1">
                   {gifResults.map((gif, i) => (
                     <button
                       key={gif.id || i}

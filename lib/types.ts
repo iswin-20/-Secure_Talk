@@ -40,6 +40,8 @@ export interface Participant {
   id: string;
   color: string;
   claimed?: boolean;
+  passwordHash?: string; // SHA-256 hash of role password
+  claimedBy?: string;    // display name set by user
 }
 
 export interface ChatData {
