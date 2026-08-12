@@ -1,8 +1,8 @@
-# Secure Talk 🔒 — Full Documentation
+# BlinkTalk 🔒 — Full Documentation
 
 > End-to-end encrypted group chat · Burn-after-read · Video sync · Music sync
 
-**Secure Talk** is an end-to-end encrypted ephemeral group chat application. Create a link, share it with friends, and everyone picks a role before starting a secure conversation. Messages are encrypted in the browser — the server cannot read them.
+**BlinkTalk** (瞬语) is an end-to-end encrypted ephemeral group chat application. Create a link, share it with friends, and everyone picks a role before starting a secure conversation. Messages are encrypted in the browser — the server cannot read them.
 
 📖 [中文文档](./README.zh.md)
 
@@ -84,8 +84,8 @@ Built-in WeChat-style emoji picker using wechat-emoji-renderer with sprite sheet
 ### Local Development
 
 ```bash
-git clone https://github.com/iswin-20/Secure_Talk.git
-cd Secure_Talk
+git clone https://github.com/iswin-20/BlinkTalk.git
+cd BlinkTalk
 npm install
 ```
 

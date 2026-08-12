@@ -1,8 +1,8 @@
-# Secure Talk 🔒 — 完整中文文档
+# 瞬语 / BlinkTalk — 完整中文文档
 
 > 端到端加密群聊 · 阅后即焚 · 角色分配 · 视频同步 · 音乐同步
 
-**Secure Talk** 是一个端到端加密的临时群聊应用。创建一个链接，分享给朋友，每个人选择自己的角色后即可开始安全对话。消息在浏览器端加密，服务器无法读取。
+**瞬语 (BlinkTalk)** 是一个端到端加密的临时群聊应用。创建一个链接，分享给朋友，每个人选择自己的角色后即可开始安全对话。消息在浏览器端加密，服务器无法读取。
 
 ---
 
@@ -82,8 +82,8 @@
 ### 本地开发
 
 ```bash
-git clone https://github.com/iswin-20/Secure_Talk.git
-cd Secure_Talk
+git clone https://github.com/iswin-20/BlinkTalk.git
+cd BlinkTalk
 npm install
 ```
 

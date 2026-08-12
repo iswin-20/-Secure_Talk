@@ -19,7 +19,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Secure Talk",
+  title: "瞬语",
   description: "End-to-end encrypted chat. Messages that disappear.",
   icons: {
     icon: "/favicon.ico?v=2",
