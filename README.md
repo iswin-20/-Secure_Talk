@@ -1,129 +1,36 @@
 # Secure Talk 🔒
 
-> 端到端加密群聊 · 阅后即焚 · 角色分配 · 安全第一
+> End-to-end encrypted group chat · 端到端加密群聊  
+> Burn-after-read · 阅后即焚 · Role selection · 角色分配
 
-**Secure Talk** 是一个端到端加密的临时群聊应用。创建一个链接，分享给朋友，每个人选择自己的角色后即可开始安全对话。消息在浏览器端加密，服务器无法读取。
+**Secure Talk** is an end-to-end encrypted ephemeral group chat. Create one link, share it, everyone picks a role, start chatting. Messages are encrypted in the browser — the server cannot read them.
 
----
-
-## ✨ 功能
-
-- 🔐 **端到端加密** — 消息在发送前加密，只有持有密钥的参与者能解密
-- 👥 **群聊支持** — 2-15 人同时聊天，每人拥有唯一的 Notion 风格头像
-- 🎭 **角色自选** — 共享一个链接，每个人进入后选择未被占用的角色
-- 🔥 **阅后即焚** — 可设置消息在阅读后自动销毁
-- ⏱️ **自动过期** — 聊天室在指定时间无消息后自动销毁
-- 🔒 **访问密码** — 可为聊天室设置额外的访问密码保护
-- 😀 **微信表情包** — 内置微信风格表情，聊天更生动
+端到端加密的临时群聊应用。创建一个链接分享给朋友，每人选择角色后即可安全对话。消息在浏览器端加密，服务器无法读取。
 
 ---
 
-## 🚀 快速开始
+## ✨ 功能 / Features
 
-### 环境要求
-
-- Node.js 18+
-- npm 或 yarn
-
-### 安装
-
-```bash
-git clone https://github.com/iswin-20/-Secure_Talk.git
-cd -Secure_Talk
-npm install
-```
-
-### 配置
-
-创建 `.env.local` 文件：
-
-```env
-ADMIN_PASSWORD=your_admin_password
-NEXT_PUBLIC_APP_URL=https://your-domain.com
-```
-
-### 运行
-
-```bash
-npm run dev    # 开发模式
-npm run build  # 构建
-npm run start  # 生产模式 (端口 3457 或其他)
-```
+- 🔐 **E2E Encryption / 端到端加密** — Encrypted before sending; only key-holders can decrypt / 消息发送前加密，只有持密钥者能解密
+- 👥 **Group Chat / 群聊** — 2-15 people, each with unique Notion-style avatar / 每人 Notion 风格唯一头像
+- 🎭 **Role Selection / 角色自选** — One link, everyone picks an available role / 统一链接，先到先得选角色
+- 🔥 **Burn After Read / 阅后即焚** — Messages self-destruct after being read
+- ⏱️ **Auto Expiry / 自动过期** — Rooms destroy after configurable idle time / 指定时间无消息后自动销毁
+- 🔒 **Access Password / 访问密码** — Optional extra password protection
+- 😀 **WeChat Emojis / 微信表情** — Built-in emoji picker / 内置微信风格表情选择器
+- 🎬 **Video Sync / 视频同步** — Watch YouTube/videos together in sync / 一起看视频，进度实时同步
+- 🎵 **Music Sync / 音乐同步** — Listen together with QQ Music + NetEase / 一起听歌，QQ音乐+网易云双源
 
 ---
 
-## 🛠️ 技术栈
+## 🚀 快速开始 / Quick Start
 
-- **框架**: Next.js 14 (App Router)
-- **加密**: Web Crypto API (AES-GCM)
-- **存储**: SQLite (本地数据库)
-- **头像**: DiceBear Notionists
-- **表情**: wechat-emoji-renderer
-- **部署**: PM2 + Nginx
-
----
-
-## 📝 使用说明
-
-1. 访问聊天创建页面，输入管理员密码
-2. 设置参与人数（2-15人）
-3. 可选：设置访问密码、失效时间
-4. 创建聊天 → 得到一个统一链接
-5. 将链接分享给朋友
-6. 每个人打开链接选择自己的角色（先到先得）
-7. 开始安全聊天！
-
----
-
-## 🙏 致谢
-
-本项目基于 **[next-secure-share](https://github.com/infrost/next-secure-share)** 衍生开发，感谢原作者 **infrost** 的优秀工作。
-
-在原项目基础上，我们增加了以下功能：
-- 多人群聊支持（原为双人聊天）
-- 统一链接 + 角色自选机制
-- Notion 风格随机头像
-- 微信表情包集成
-- 聊天框拖拽调整大小
-- 全面 UI 重构（数字保险箱设计系统）
-- SQLite 本地存储替代云端依赖
-
----
-
-## 📄 许可证
-
-MIT License
-
----
-
-# Secure Talk 🔒
-
-> End-to-end encrypted group chat · Burn-after-read · Role selection · Security first
-
-**Secure Talk** is an end-to-end encrypted ephemeral group chat application. Create one link, share it with friends, and everyone picks their own role before starting a secure conversation. Messages are encrypted in the browser — the server cannot read them.
-
----
-
-## ✨ Features
-
-- 🔐 **E2E Encryption** — Messages are encrypted before sending; only participants with the key can decrypt
-- 👥 **Group Chat** — 2-15 participants, each with a unique Notion-style avatar
-- 🎭 **Role Selection** — One shared link; everyone picks an available role on entry
-- 🔥 **Burn After Read** — Messages can self-destruct after being read
-- ⏱️ **Auto Expiry** — Chat rooms auto-destroy after a configurable idle period
-- 🔒 **Access Password** — Optional extra password protection for chat rooms
-- 😀 **WeChat Emojis** — Built-in WeChat-style emoji picker for lively conversations
-
----
-
-## 🚀 Quick Start
-
-### Requirements
+### 环境要求 / Requirements
 
 - Node.js 18+
 - npm or yarn
 
-### Installation
+### 安装 / Installation
 
 ```bash
 git clone https://github.com/iswin-20/-Secure_Talk.git
@@ -131,7 +38,7 @@ cd -Secure_Talk
 npm install
 ```
 
-### Configuration
+### 配置 / Configuration
 
 Create `.env.local`:
 
@@ -140,54 +47,59 @@ ADMIN_PASSWORD=your_admin_password
 NEXT_PUBLIC_APP_URL=https://your-domain.com
 ```
 
-### Run
+### 运行 / Run
 
 ```bash
-npm run dev    # Development
-npm run build  # Build
-npm run start  # Production (port 3457 or custom)
+npm run dev    # 开发 / Development
+npm run build  # 构建 / Build
+npm run start  # 生产 / Production (port 3457)
 ```
 
 ---
 
-## 🛠️ Tech Stack
+## 🛠️ 技术栈 / Tech Stack
 
-- **Framework**: Next.js 14 (App Router)
-- **Encryption**: Web Crypto API (AES-GCM)
-- **Storage**: SQLite (local database)
-- **Avatars**: DiceBear Notionists
-- **Emojis**: wechat-emoji-renderer
-- **Deployment**: PM2 + Nginx
-
----
-
-## 📝 Usage
-
-1. Go to the chat creation page and enter the admin password
-2. Set the number of participants (2-15)
-3. Optional: set an access password, expiry time
-4. Create chat → get a single unified link
-5. Share the link with friends
-6. Everyone opens the link and picks their role (first come, first served)
-7. Start chatting securely!
+| 用途 / Use | 技术 / Tech |
+|---|---|
+| Framework / 框架 | Next.js 14 (App Router) |
+| Encryption / 加密 | Web Crypto API (AES-GCM) |
+| Storage / 存储 | SQLite (local) |
+| Avatars / 头像 | DiceBear Notionists |
+| Emojis / 表情 | wechat-emoji-renderer |
+| Deployment / 部署 | PM2 + Nginx |
 
 ---
 
-## 🙏 Acknowledgments
+## 📝 使用说明 / Usage
 
-This project is derived from **[next-secure-share](https://github.com/infrost/next-secure-share)** by **infrost**. Huge thanks to the original author for their excellent work.
-
-Enhancements over the original project:
-- Multi-person group chat (originally two-person only)
-- Unified link + role selection mechanism
-- Notion-style random avatars
-- WeChat emoji integration
-- Resizable chat window
-- Complete UI redesign (Digital Safe design system)
-- SQLite local storage replacing cloud dependencies
+1. Visit creation page → enter admin password / 访问创建页面 → 输入管理员密码
+2. Set participant count (2-15) / 设置参与人数
+3. Optional: access password, expiry time / 可选：访问密码、失效时间
+4. Create → get one link / 创建 → 得到统一链接
+5. Share the link / 分享链接
+6. Everyone picks a role / 每人选择角色
+7. Start chatting! / 开始聊天！
 
 ---
 
-## 📄 License
+## 🙏 致谢 / Acknowledgments
 
-MIT License
+Derived from **[next-secure-share](https://github.com/infrost/next-secure-share)** by **infrost**. Huge thanks!
+
+基于 **infrost** 的 next-secure-share 衍生开发，感谢原作者。
+
+### 增强功能 / Enhancements
+
+- Multi-person group chat (originally 2-person) / 多人群聊（原双人）
+- Unified link + role selection / 统一链接+角色自选
+- Notion-style avatars / Notion 风格头像
+- WeChat emoji integration / 微信表情集成
+- Resizable chat + Video/Music sync / 拖拽聊天+视频音乐同步
+- Complete UI redesign / 全面 UI 重构
+- SQLite replacing cloud storage / SQLite 替代云端依赖
+
+---
+
+## 📄 License / 许可证
+
+MIT
