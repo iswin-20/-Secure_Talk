@@ -201,15 +201,18 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [destroyVotes]);
 
-  // Scroll to bottom
+  // Scroll to bottom — use rAF to guarantee DOM layout is done
   const initialLoadDone = useRef(false);
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
     const atBottom = container.scrollHeight - container.clientHeight <= container.scrollTop + 100;
-    // Always scroll on initial load, then only when user is at bottom
     if (!initialLoadDone.current || atBottom) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+      requestAnimationFrame(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+        }
+      });
     }
     initialLoadDone.current = true;
     if (messages.length === 0) initialLoadDone.current = false;
