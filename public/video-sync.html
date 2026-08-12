@@ -89,11 +89,20 @@ body{font-family:'Geist',-apple-system,sans-serif;background:var(--bg);color:var
       var m=JSON.parse(e.data);
       if(m.method==='/room/join'){
         updateMembers(m.data.memberCount);
-        if(m.data.url){currentUrl=m.data.url;loadPlayer(m.data.url);}
+        if(m.data.url&&!m.data.url.startsWith('music://')&&!m.data.url.includes('music.vidaxl.space')){
+          currentUrl=m.data.url;loadPlayer(m.data.url);
+        }
       }else if(m.method==='/room/update'){
         updateMembers(m.data.memberCount);
-        if(m.data.url&&m.data.url!==currentUrl){currentUrl=m.data.url;loadPlayer(m.data.url)}
-        else if(m.data.url===''){clearPlayer()}
+        if(m.data.url&&m.data.url!==currentUrl&&m.data.url!==''){
+          if(m.data.url.startsWith('music://')||m.data.url.includes('music.vidaxl.space')){
+            // Music tab URL — ignore in video mode
+          }else{
+            currentUrl=m.data.url;loadPlayer(m.data.url);
+          }
+        }else if(m.data.url===''){
+          clearPlayer();
+        }
         syncState(m.data);
       }
     };
