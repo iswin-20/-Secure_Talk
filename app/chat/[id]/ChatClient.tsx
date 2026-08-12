@@ -791,7 +791,7 @@ export default function ChatClient({ chatId, myIdentity, myColor, participants, 
                 <div className={`flex items-end gap-1 ${isSelf ? "flex-row-reverse" : "flex-row"}`}>
                   <div className="flex flex-col">
                     {!isSelf && <span className="text-[10px] font-medium mb-0.5 ml-1" style={{ color: senderColor }}>{msg.sender.substring(0, 3)}</span>}
-                    <div className={`max-w-[500px] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${isSelf ? "bg-[rgb(var(--chat-self))] text-white rounded-br-md" : "bg-[rgb(var(--chat-other))] text-[rgb(var(--text-primary))] rounded-bl-md"}`}>
+                    <div className={`max-w-[500px] rounded-2xl text-sm leading-relaxed ${isSelf ? "rounded-br-md" : "rounded-bl-md"} ${(msg.gifUrl || msg.imageData) ? "px-0 py-0 bg-transparent" : (isSelf ? "px-4 py-2.5 bg-[rgb(var(--chat-self))] text-white" : "px-4 py-2.5 bg-[rgb(var(--chat-other))] text-[rgb(var(--text-primary))]")}`}>
                       {/* Reply context */}
                       {replyMsg && (
                         <div className={`text-xs mb-1.5 px-2 py-1 rounded-lg ${isSelf ? "bg-white/20" : "bg-[rgb(var(--surface-tertiary))]"}`}>

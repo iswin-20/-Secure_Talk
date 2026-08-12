@@ -232,23 +232,22 @@ body{font-family:'Geist',-apple-system,sans-serif;background:var(--bg);color:var
     };
     ws.onclose=function(){setStatus(false);setTimeout(connect,3000)};};
 
-  var _lastBroadcast=0;
+  var _lastBroadcast=0,_syncing=false,_smoothDrift=0;
   function broadcast(action,extra){
     if(!ws||ws.readyState!==1)return;
     var now=Date.now();
     if(now-_lastBroadcast<300)return;
     _lastBroadcast=now;
     var cur=queue[currentIdx]||{};
-    // First ensure room exists by sending a join (may fail, that's OK)
     if(_lastJoinFailed){ws.send(JSON.stringify({method:'/room/join',data:{name:ROOM,password:''}}));_lastJoinFailed=false}
-    // Encode music state in url field since Go server only passes url
     var musicUrl='music://sync?';
     var params=[];
     if(action)params.push('a='+encodeURIComponent(action));
-    if(cur.uid){params.push('uid='+encodeURIComponent(cur.uid));params.push('n='+encodeURIComponent(cur.name||''));params.push('ar='+encodeURIComponent(cur.artist||''));params.push('cv='+encodeURIComponent(cur.cover||''));params.push('pv='+encodeURIComponent(cur.provider||''))}
-    params.push('t='+Math.floor(audio.currentTime*10)/10);
+    if(cur.uid){params.push('uid='+encodeURIComponent(cur.uid));params.push('n='+encodeURIComponent(cur.name||''));params.push('ar='+encodeURIComponent(cur.artist||''));params.push('cv='+encodeURIComponent(cur.cover||''));params.push('pv='+encodeURIComponent(cur.provider||''));params.push('mid='+encodeURIComponent(cur.mid||''))}
+    params.push('t='+Math.floor(audio.currentTime*100)/100);
     params.push('d='+Math.floor((audio.duration||0)*10)/10);
     params.push('p='+(audio.paused?1:0));
+    params.push('sid='+uid);
     musicUrl+=params.join('&');
     ws.send(JSON.stringify({method:'/room/update',data:{name:ROOM,password:'',sendLocalTimestamp:Date.now()/1000,tempUser:uid,public:true,url:musicUrl}}));
   }
@@ -257,15 +256,34 @@ body{font-family:'Geist',-apple-system,sans-serif;background:var(--bg);color:var
     if(!url||url.indexOf('music://sync?')!==0)return;
     var p=new URLSearchParams(url.split('?')[1]);
     var action=p.get('a'),t=parseFloat(p.get('t')||'0'),uid_r=p.get('uid'),isPaused=p.get('p')==='1';
+    var sid=p.get('sid')||'';
+    // Don't sync own broadcasts
+    if(sid===uid)return;
     // New song?
     if(uid_r&&(!queue.length||queue[currentIdx]?.uid!==uid_r)){
-      var s={uid:uid_r,name:p.get('n')||'',artist:p.get('ar')||'',cover:p.get('cv')||'',provider:p.get('pv')||'',duration:parseFloat(p.get('d')||'0'),audioUrl:'',mid:''};
+      var s={uid:uid_r,name:p.get('n')||'',artist:p.get('ar')||'',cover:p.get('cv')||'',provider:p.get('pv')||'',mid:p.get('mid')||'',duration:parseFloat(p.get('d')||'0'),audioUrl:''};
       queue.push(s);if(queue.length===1){currentIdx=0;playCurrent()}updateQueueBadge();
     }
-    // Sync playback
-    if(action==='pause'||isPaused){audio.pause()}
-    else if(action==='play'){audio.play().catch(function(){})}
-    if(t>0&&Math.abs(audio.currentTime-t)>3&&action!=='play_song'){audio.currentTime=t}
+    // Sync playback state
+    if(action==='pause'||isPaused){audio.pause();updatePlayBtn();_smoothDrift=0;return}
+    else if(action==='play'||action==='play_song'){audio.play().catch(function(){});_smoothDrift=0}
+    // Drift correction: micro-adjust speed, only seek for large gaps
+    if(t>0&&audio.currentTime>0){
+      var drift=audio.currentTime-t;
+      var absDrift=Math.abs(drift);
+      // EMA smooth to avoid jitter
+      _smoothDrift=_smoothDrift*0.7+drift*0.3;
+      if(Math.abs(_smoothDrift)>2.5){
+        // Large drift: hard seek
+        audio.currentTime=t;_smoothDrift=0;
+      }else if(absDrift>0.3){
+        // Small drift: adjust playback speed (0.95x - 1.05x)
+        var targetRate=1+Math.max(-0.05,Math.min(0.05,_smoothDrift*0.02));
+        audio.playbackRate=targetRate;
+      }else{
+        audio.playbackRate=1;
+      }
+    }
   }
 
   // ========== AUDIO ==========
@@ -498,8 +516,13 @@ body{font-family:'Geist',-apple-system,sans-serif;background:var(--bg);color:var
     }else if(s.provider==='qq'){
       var mid=s.mid||extractQQMid(s.uid);
       if(mid){
+        // Get fresh vkey URL then stream through V3 proxy
         fetch('https://music.vidaxl.space/api/qq/song/url?mid='+mid+'&skipProbe=1&quality=128k').then(function(r){return r.json()}).then(function(d){
-          if(d.url)playAudioUrl(d.url);
+          if(d.url){
+            // Stream through V3 proxy with proper headers
+            var proxyUrl='https://music.vidaxl.space/api/stream?url='+encodeURIComponent(d.url)+'&source=qq';
+            playAudioUrl(proxyUrl);
+          }
         }).catch(function(){});
       }
     }
@@ -577,6 +600,7 @@ body{font-family:'Geist',-apple-system,sans-serif;background:var(--bg);color:var
   }
 
   function renderLyrics(){
+    _lastLyricIdx=-1;
     var el=document.getElementById('lyricsBody');
     if(!lyrics.length){el.innerHTML='<div class="lyric-empty">暂无歌词</div>';return}
     el.innerHTML=lyrics.map(function(l){return '<div class="lyric-line" data-time="'+l.time+'">'+escapeHtml(l.text)+'</div>'}).join('');
@@ -584,10 +608,13 @@ body{font-family:'Geist',-apple-system,sans-serif;background:var(--bg);color:var
     highlightLyric();
   }
 
+  var _lastLyricIdx=-1;
   function highlightLyric(){
     if(!lyrics.length||!lyricsVisible)return;
     var t=audio.currentTime,activeIdx=-1;
     for(var i=0;i<lyrics.length;i++){if(lyrics[i].time<=t)activeIdx=i;else break}
+    if(activeIdx===_lastLyricIdx)return;
+    _lastLyricIdx=activeIdx;
     var lines=document.querySelectorAll('.lyric-line');
     lines.forEach(function(l){l.classList.remove('active')});
     if(activeIdx>=0&&lines[activeIdx]){
@@ -636,7 +663,8 @@ body{font-family:'Geist',-apple-system,sans-serif;background:var(--bg);color:var
   function updateMembers(n){if(n)memberCount=n;document.getElementById('memberInfo').textContent='· 👥 '+(memberCount||1)+' 在线'}
 
   audio.onloadedmetadata=function(){document.getElementById('npDur').textContent=fmtTime(audio.duration)};
-  setInterval(function(){if(!audio.paused)updateProgress()},500);
+  // Periodic time sync every 5s for continuous synchronization
+  setInterval(function(){if(!audio.paused)broadcast('sync')},5000);
   connect();
 })();
 </script>
